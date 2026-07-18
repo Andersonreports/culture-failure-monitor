@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env server/index.ts"
+  },
+  "imports": {
+    "express": "npm:express@^4.19.2",
+    "@types/express": "npm:@types/express@^4.17.21",
+    "googleapis": "npm:googleapis@^173.0.0",
+    "multer": "npm:multer@^2.2.0",
+    "@types/multer": "npm:@types/multer@^1.4.12"
+  },
+  "compilerOptions": {
+    "strict": true
+  }
+}
