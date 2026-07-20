@@ -74,21 +74,47 @@ interface SheetsHandle {
 // creation so every caller during a single server run awaits the same result.
 let ensureSpreadsheetPromise: Promise<SheetsHandle> | null = null;
 
-// Writes the current header row to both tabs. Safe to call every time a
-// spreadsheet is created OR reused - it's how an already-existing sheet
-// (created before new columns like BillImageLink were added) picks up the
-// new columns without needing to be recreated. Only appends columns at the
-// end, so existing row data never shifts.
+// Reads a tab's live header row (row 1) as an array of column names.
+async function getSheetHeaders(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  tab: string,
+): Promise<string[]> {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${tab}'!1:1`,
+  });
+  return (res.data.values && res.data.values[0] ? res.data.values[0] : []) as string[];
+}
+
+// Ensures every canonical field has a column, WITHOUT disturbing the existing
+// layout. A brand-new (empty) tab gets the full header row; an existing tab
+// keeps whatever column order it has (the user may have reordered/renamed to
+// taste) and only gets genuinely-missing canonical fields appended at the end.
+// Because all reads/writes match columns by NAME, existing data never shifts.
 async function syncHeaders(sheets: ReturnType<typeof google.sheets>, spreadsheetId: string) {
   await Promise.all(
-    Object.values(CATEGORIES).map((tab) =>
-      sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${tab}'!A1`,
-        valueInputOption: "RAW",
-        requestBody: { values: [[...FAILURE_HEADERS]] },
-      })
-    ),
+    Object.values(CATEGORIES).map(async (tab) => {
+      const existing = await getSheetHeaders(sheets, spreadsheetId, tab);
+      if (existing.length === 0) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${tab}'!A1`,
+          valueInputOption: "RAW",
+          requestBody: { values: [[...FAILURE_HEADERS]] },
+        });
+        return;
+      }
+      const missing = FAILURE_HEADERS.filter((h) => !existing.includes(h));
+      if (missing.length) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${tab}'!A1`,
+          valueInputOption: "RAW",
+          requestBody: { values: [[...existing, ...missing]] },
+        });
+      }
+    }),
   );
 }
 
@@ -140,11 +166,21 @@ function tabFor(category: FailureCategory): string {
   return tab;
 }
 
-async function appendFailureRow(category: FailureCategory, row: unknown[]): Promise<string> {
+// Appends a new failure. `values` is keyed by field name; the row is ordered
+// to match the sheet's ACTUAL header row so each value lands in its column no
+// matter how the columns are arranged.
+async function appendFailureRow(
+  category: FailureCategory,
+  values: Record<string, string>,
+): Promise<string> {
   const { sheets, spreadsheetId } = await ensureSpreadsheet();
+  const tab = tabFor(category);
+  const headers = await getSheetHeaders(sheets, spreadsheetId, tab);
+  const order = headers.length ? headers : [...FAILURE_HEADERS];
+  const row = order.map((name) => values[name] ?? "");
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `'${tabFor(category)}'!A1`,
+    range: `'${tab}'!A1`,
     valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -154,17 +190,23 @@ async function appendFailureRow(category: FailureCategory, row: unknown[]): Prom
 
 async function listFailures(category: FailureCategory): Promise<FailureRow[]> {
   const { sheets, spreadsheetId } = await ensureSpreadsheet();
-  // Generous column bound so adding more headers later doesn't silently
-  // truncate rows again (this previously stopped at M and clipped 2 columns).
+  const tab = tabFor(category);
+  // Read header + data together and map each cell by its column NAME, so
+  // manually reordered/renamed columns still line up with the right field.
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `'${tabFor(category)}'!A2:ZZ`,
+    range: `'${tab}'!A1:ZZ`,
   });
   const rows = res.data.values || [];
-  return rows.map((r, i) => {
+  const headers = (rows[0] || []) as string[];
+  const knownHeaders = FAILURE_HEADERS as readonly string[];
+  return rows.slice(1).map((r, i) => {
     const entry: Record<string, string | number> = { rowNumber: i + 2 };
-    FAILURE_HEADERS.forEach((header, j) => {
-      entry[header] = r[j] || "";
+    FAILURE_HEADERS.forEach((h) => {
+      entry[h] = "";
+    });
+    headers.forEach((name, j) => {
+      if (knownHeaders.includes(name)) entry[name] = r[j] || "";
     });
     return entry as unknown as FailureRow;
   });
@@ -189,12 +231,17 @@ async function updateFailureField(
   value: string,
 ): Promise<void> {
   const { sheets, spreadsheetId } = await ensureSpreadsheet();
-  const columnIndex = FAILURE_HEADERS.indexOf(header);
+  const tab = tabFor(category);
+  // Resolve the column from the sheet's live header row (falling back to the
+  // canonical order) so we write to the right cell even if columns moved.
+  const headers = await getSheetHeaders(sheets, spreadsheetId, tab);
+  let columnIndex = headers.indexOf(header);
+  if (columnIndex === -1) columnIndex = FAILURE_HEADERS.indexOf(header);
   if (columnIndex === -1) throw new Error(`Unknown failure column: ${header}`);
   const col = columnLetter(columnIndex + 1);
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${tabFor(category)}'!${col}${rowNumber}`,
+    range: `'${tab}'!${col}${rowNumber}`,
     valueInputOption: "RAW",
     requestBody: { values: [[value]] },
   });

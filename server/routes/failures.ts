@@ -104,7 +104,6 @@ router.post(
           sampleId: body.sampleId,
           patientName: body.patientName,
           hospitalName: body.hospitalName,
-          testMethodology: body.testMethodology,
           testName: body.testName,
           reason: body.reason || "",
           notes: body.notes,
@@ -123,20 +122,18 @@ router.post(
         OrderID: body.orderId || "",
         SampleID: body.sampleId || "",
         PatientName: body.patientName || "",
-        TestMethodology: body.testMethodology || "",
+        HospitalName: body.hospitalName || "",
         TestName: body.testName || "",
         Reason: body.reason || "",
         Notes: body.notes || "",
-        ReportedBy: body.reportedBy,
+        ReportedBy: body.reportedBy || "",
         BillImageLink: billImageLink,
         ReferenceImageLinks: referenceImageLinks.join("; "),
         FailureType: body.failureType,
         RecollectionStatus: "Pending",
-        HospitalName: body.hospitalName || "",
       };
-      const row = FAILURE_HEADERS.map((h) => rowByHeader[h]);
 
-      const spreadsheetId = await googleSheets.appendFailureRow(category, row);
+      const spreadsheetId = await googleSheets.appendFailureRow(category, rowByHeader);
 
       res.json({ ok: true, spreadsheetId, failure: rowByHeader });
     } catch (err) {

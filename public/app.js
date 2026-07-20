@@ -241,7 +241,6 @@ function renderCategory(category) {
       f.OrderID,
       f.PatientName,
       f.HospitalName,
-      f.TestMethodology,
       f.TestName,
       f.FailureType,
       f.Reason,
@@ -279,8 +278,7 @@ async function fetchFailures() {
 
 function resetReportForm() {
   ['reportOrderId', 'reportSampleId', 'reportPatientName', 'reportHospitalName',
-    'reportTestMethodology', 'reportTestName', 'reportReason', 'reportNotes',
-    'reportReportedBy'].forEach((id) => {
+    'reportTestName', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
     el(id).value = '';
   });
   el('reportBillImage').value = '';
@@ -484,7 +482,6 @@ async function submitReport() {
     sampleId: el('reportSampleId').value.trim(),
     patientName: el('reportPatientName').value.trim(),
     hospitalName: el('reportHospitalName').value.trim(),
-    testMethodology: el('reportTestMethodology').value.trim(),
     testName: el('reportTestName').value.trim(),
     failureType: el('reportFailureType').value,
     reason: el('reportReason').value.trim(),
@@ -573,7 +570,7 @@ function matchesFilters(f) {
   }
   if (search) {
     const haystack = [
-      f.Reason, f.FailureType, f.TestMethodology, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
+      f.Reason, f.FailureType, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
     ].join(' ').toLowerCase();
     if (!haystack.includes(search.toLowerCase())) return false;
   }
@@ -625,7 +622,7 @@ function renderManagerTable(filtered) {
       tr.appendChild(tdCategory);
 
       [
-        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestMethodology, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
+        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
       ].forEach((value) => {
         const td = document.createElement('td');
         td.textContent = value || '';

@@ -21,12 +21,16 @@ export const FAILURE_TYPES: Record<FailureCategory, readonly string[]> = {
   ],
 };
 
+// Canonical field set + the order used only when creating a brand-new sheet.
+// Existing sheets are read/written by matching these NAMES against the sheet's
+// actual header row (see googleSheets.ts), so the app tolerates columns being
+// manually reordered or new ones inserted - positions are never hardcoded.
 export const FAILURE_HEADERS = [
   'Timestamp',
   'OrderID',
   'SampleID',
   'PatientName',
-  'TestMethodology',
+  'HospitalName',
   'TestName',
   'Reason',
   'Notes',
@@ -35,7 +39,6 @@ export const FAILURE_HEADERS = [
   'ReferenceImageLinks',
   'FailureType',
   'RecollectionStatus',
-  'HospitalName',
 ] as const;
 
 export interface FailureRow {
@@ -43,7 +46,7 @@ export interface FailureRow {
   OrderID: string;
   SampleID: string;
   PatientName: string;
-  TestMethodology: string;
+  HospitalName: string;
   TestName: string;
   Reason: string;
   Notes: string;
@@ -52,7 +55,6 @@ export interface FailureRow {
   ReferenceImageLinks: string;
   FailureType: string;
   RecollectionStatus: string;
-  HospitalName: string;
   /** Not a persisted column - the sheet row number (1-based), attached at read time so updates can target this exact row. */
   rowNumber: number;
 }

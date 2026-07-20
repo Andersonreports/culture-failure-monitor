@@ -7,7 +7,6 @@ export interface NotifyPayload {
   sampleId?: string;
   patientName?: string;
   hospitalName?: string;
-  testMethodology?: string;
   testName?: string;
   reason: string;
   notes?: string;
