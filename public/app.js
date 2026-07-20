@@ -315,19 +315,62 @@ function parseOcrText(text) {
   const name = norm.match(/\bname\s+([A-Za-z.\s]+?)\s*[([]/i);
   if (name) found.reportPatientName = name[1].trim();
 
-  // Test Name <- best-effort: the run of ALL-CAPS words between the
-  // "TestName ... Total" column headers and the "Bill Amount" line. Table
-  // borders/serial numbers next to it sometimes OCR as extra caps noise
-  // (e.g. a stray "RTT" prefix) - check/trim this field before submitting.
-  const testRow = norm.match(/test\s*name.*?total\s*(.+?)\s*bill\s*amount/i);
+  // Test Name <- best-effort: the text between the "TestName ... Total/Rate"
+  // column headers and the "Bill Amount" line. Starts at an ALL-CAPS token
+  // (the test code/name) but then allows following mixed-case words so names
+  // like "NIPS - All Chromosomes" or "HCV RT PCR QUANTITATIVE" are captured
+  // whole. Table borders/serial numbers sometimes OCR as extra noise - check
+  // and trim this field before submitting.
+  const testRow = norm.match(/test\s*name.*?(?:total|rate)\s*(.+?)\s*(?:bill\s*amount|rate)/i);
   if (testRow) {
-    const capsRuns = testRow[1].match(/[A-Z]{2,}(?:\s+[A-Z]{2,})*/g);
+    const capsRuns = testRow[1].match(/[A-Z]{2,}(?:[\s-]+[A-Za-z0-9]{2,})*/g);
     if (capsRuns && capsRuns.length) {
-      found.reportTestName = capsRuns.sort((a, b) => b.length - a.length)[0];
+      // Trailing numbers are the rate/amount columns bleeding in (e.g.
+      // "NIPS - All Chromosomes 5000") - strip them off the test name.
+      found.reportTestName = capsRuns
+        .sort((a, b) => b.length - a.length)[0]
+        .replace(/[\s\d.,]+$/, '')
+        .trim();
     }
   }
 
   return found;
+}
+
+// These bill scans are often ~800px wide, which puts the small patient/table
+// text below Tesseract's reliable size (it wants ~30px+ cap height). Upscaling
+// to ~2000px wide and converting to grayscale+contrast dramatically improves
+// recognition of that middle section. Returns a canvas Tesseract can read
+// directly; falls back to the original file if anything goes wrong.
+function preprocessBillImage(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const targetWidth = 2000;
+        const scale = img.naturalWidth < targetWidth ? targetWidth / img.naturalWidth : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        const ctx = canvas.getContext('2d');
+        // ctx.filter is supported in modern Chrome/Firefox/Safari; if a browser
+        // ignores it, we still benefit from the upscale alone.
+        ctx.filter = 'grayscale(1) contrast(1.3)';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
 }
 
 async function runOcrOnBillImage(file) {
@@ -343,7 +386,8 @@ async function runOcrOnBillImage(file) {
   }
 
   try {
-    const { data } = await Tesseract.recognize(file, 'eng');
+    const ocrInput = await preprocessBillImage(file);
+    const { data } = await Tesseract.recognize(ocrInput, 'eng');
     const rawText = data.text || '';
 
     const rawDetails = el('ocrRawTextDetails');
@@ -387,8 +431,19 @@ function openReportModal(category) {
   overlay.dataset.category = category;
   resetReportForm();
   populateFailureTypeSelect(category);
+  updateReasonRequiredHint();
   overlay.hidden = false;
   el('reportOrderId').focus();
+}
+
+function updateReasonRequiredHint() {
+  const isOther = el('reportFailureType').value === 'Other';
+  const label = el('reportReasonLabel');
+  if (isOther) {
+    label.innerHTML = 'Reason <span class="required-mark">*</span>';
+  } else {
+    label.textContent = 'Reason (optional)';
+  }
 }
 
 function closeReportModal() {
@@ -426,8 +481,8 @@ async function submitReport() {
     errorBox.hidden = false;
     return;
   }
-  if (!fields.reason) {
-    errorBox.textContent = 'Reason is required.';
+  if (fields.failureType === 'Other' && !fields.reason) {
+    errorBox.textContent = 'Reason is required when Failure Type is "Other".';
     errorBox.hidden = false;
     return;
   }
@@ -787,6 +842,7 @@ el('reportBillImage').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (file) runOcrOnBillImage(file);
 });
+el('reportFailureType').addEventListener('change', updateReasonRequiredHint);
 
 renderRoleUI();
 fetchFailures();

@@ -61,8 +61,11 @@ router.post(
       res.status(400).json({ error: "failureType must be one of the listed options for this category" });
       return;
     }
-    if (!body.reason?.trim()) {
-      res.status(400).json({ error: "reason is required" });
+    // The failure type usually already says what went wrong, so Reason is
+    // optional - except when "Other" is chosen, where it's the only field
+    // that captures the actual cause.
+    if (body.failureType === "Other" && !body.reason?.trim()) {
+      res.status(400).json({ error: 'reason is required when failure type is "Other"' });
       return;
     }
     if (!body.reportedBy?.trim()) {
@@ -102,7 +105,7 @@ router.post(
           patientName: body.patientName,
           testMethodology: body.testMethodology,
           testName: body.testName,
-          reason: body.reason,
+          reason: body.reason || "",
           notes: body.notes,
           reportedBy: body.reportedBy,
           timestamp,
@@ -121,7 +124,7 @@ router.post(
         PatientName: body.patientName || "",
         TestMethodology: body.testMethodology || "",
         TestName: body.testName || "",
-        Reason: body.reason,
+        Reason: body.reason || "",
         Notes: body.notes || "",
         ReportedBy: body.reportedBy,
         BillImageLink: billImageLink,
