@@ -240,6 +240,7 @@ function renderCategory(category) {
       f.SampleID,
       f.OrderID,
       f.PatientName,
+      f.HospitalName,
       f.TestMethodology,
       f.TestName,
       f.FailureType,
@@ -277,8 +278,9 @@ async function fetchFailures() {
 }
 
 function resetReportForm() {
-  ['reportOrderId', 'reportSampleId', 'reportPatientName', 'reportTestMethodology',
-    'reportTestName', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
+  ['reportOrderId', 'reportSampleId', 'reportPatientName', 'reportHospitalName',
+    'reportTestMethodology', 'reportTestName', 'reportReason', 'reportNotes',
+    'reportReportedBy'].forEach((id) => {
     el(id).value = '';
   });
   el('reportBillImage').value = '';
@@ -314,6 +316,26 @@ function parseOcrText(text) {
   // matching "TestName"/"PanelName" which have no boundary before "Name".
   const name = norm.match(/\bname\s+([A-Za-z.\s]+?)\s*[([]/i);
   if (name) found.reportPatientName = name[1].trim();
+
+  // Hospital Name <- the "PanelName" field (referring hospital/centre). It
+  // reliably sits between the "Bill User <name>" line and the "# Test Code"
+  // table header, so we grab that whole region rather than anchoring on the
+  // "PanelName" label - the label is often mis-OCR'd (e.g. "PancIName") and,
+  // when the name wraps to two lines, the label gets interleaved into the
+  // value. We then strip that label token (however it was garbled) and any
+  // leading punctuation. Best-effort; the field stays editable for review.
+  const panelRegion = norm.match(/bill\s*user\s+\S+\s+(.*?)\s*(?:#|test\s*code|test\s*name)/i);
+  if (panelRegion) {
+    const hospital = panelRegion[1]
+      // Remove the "PanelName" label token however OCR garbled it (e.g.
+      // "PancIName", "Panc¢IName") - \S* tolerates stray characters inside it.
+      .replace(/pan\S*name/ig, ' ')
+      .replace(/\s{2,}/g, ' ')
+      // Strip leading junk (table-border "|", commas, spaces, OCR specks).
+      .replace(/^[^A-Za-z0-9]+/, '')
+      .trim();
+    if (hospital.length > 3) found.reportHospitalName = hospital;
+  }
 
   // Test Name <- best-effort: the text between the "TestName ... Total/Rate"
   // column headers and the "Bill Amount" line. Starts at an ALL-CAPS token
@@ -461,6 +483,7 @@ async function submitReport() {
     orderId: el('reportOrderId').value.trim(),
     sampleId: el('reportSampleId').value.trim(),
     patientName: el('reportPatientName').value.trim(),
+    hospitalName: el('reportHospitalName').value.trim(),
     testMethodology: el('reportTestMethodology').value.trim(),
     testName: el('reportTestName').value.trim(),
     failureType: el('reportFailureType').value,
@@ -550,7 +573,7 @@ function matchesFilters(f) {
   }
   if (search) {
     const haystack = [
-      f.Reason, f.FailureType, f.TestMethodology, f.TestName, f.PatientName, f.SampleID, f.OrderID,
+      f.Reason, f.FailureType, f.TestMethodology, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
     ].join(' ').toLowerCase();
     if (!haystack.includes(search.toLowerCase())) return false;
   }
@@ -602,7 +625,7 @@ function renderManagerTable(filtered) {
       tr.appendChild(tdCategory);
 
       [
-        f.SampleID, f.OrderID, f.PatientName, f.TestMethodology, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
+        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestMethodology, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
       ].forEach((value) => {
         const td = document.createElement('td');
         td.textContent = value || '';

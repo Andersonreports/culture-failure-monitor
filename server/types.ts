@@ -35,6 +35,7 @@ export const FAILURE_HEADERS = [
   'ReferenceImageLinks',
   'FailureType',
   'RecollectionStatus',
+  'HospitalName',
 ] as const;
 
 export interface FailureRow {
@@ -51,6 +52,7 @@ export interface FailureRow {
   ReferenceImageLinks: string;
   FailureType: string;
   RecollectionStatus: string;
+  HospitalName: string;
   /** Not a persisted column - the sheet row number (1-based), attached at read time so updates can target this exact row. */
   rowNumber: number;
 }

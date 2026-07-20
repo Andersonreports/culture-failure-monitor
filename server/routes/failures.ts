@@ -103,6 +103,7 @@ router.post(
           orderId: body.orderId,
           sampleId: body.sampleId,
           patientName: body.patientName,
+          hospitalName: body.hospitalName,
           testMethodology: body.testMethodology,
           testName: body.testName,
           reason: body.reason || "",
@@ -131,6 +132,7 @@ router.post(
         ReferenceImageLinks: referenceImageLinks.join("; "),
         FailureType: body.failureType,
         RecollectionStatus: "Pending",
+        HospitalName: body.hospitalName || "",
       };
       const row = FAILURE_HEADERS.map((h) => rowByHeader[h]);
 
