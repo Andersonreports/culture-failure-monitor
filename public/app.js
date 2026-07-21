@@ -138,9 +138,14 @@ function renderRoleUI() {
   });
 
   const isManager = state.role === 'manager';
-  document.querySelector('.dashboard-grid').hidden = isManager;
+  el('combinedView').hidden = isManager;
   el('managerView').hidden = !isManager;
-  if (isManager) renderManagerView();
+  renderActiveView();
+}
+
+function renderActiveView() {
+  if (state.role === 'manager') renderManagerView();
+  else renderCombined();
 }
 
 function buildImagesCell(f) {
@@ -190,8 +195,7 @@ async function toggleRecollection(category, rowNumber, currentStatus) {
   const previousStatus = target.RecollectionStatus;
 
   target.RecollectionStatus = nextStatus;
-  renderCategory(category);
-  if (state.role === 'manager') renderManagerView();
+  renderActiveView();
 
   try {
     const res = await fetch(`/api/failures/${category}/${rowNumber}`, {
@@ -203,26 +207,51 @@ async function toggleRecollection(category, rowNumber, currentStatus) {
     if (!res.ok) throw new Error(data.error || 'Failed to update recollection status');
   } catch (err) {
     target.RecollectionStatus = previousStatus;
-    renderCategory(category);
-    if (state.role === 'manager') renderManagerView();
+    renderActiveView();
     toast(err.message, 'error');
   }
 }
 
-function renderCategory(category) {
-  const list = state.failures[category] || [];
+function buildFailureRow(f, editableRecollection) {
+  const tr = document.createElement('tr');
+
+  const tdTs = document.createElement('td');
+  tdTs.textContent = formatTimestamp(f.Timestamp);
+  tr.appendChild(tdTs);
+
+  const tdCat = document.createElement('td');
+  const catPill = document.createElement('span');
+  catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
+  catPill.textContent = f._category === 'before' ? 'Before' : 'After';
+  tdCat.appendChild(catPill);
+  tr.appendChild(tdCat);
+
+  [f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent]
+    .forEach((value) => {
+      const td = document.createElement('td');
+      td.textContent = value || '';
+      tr.appendChild(td);
+    });
+
+  tr.appendChild(buildImagesCell(f));
+  tr.appendChild(buildRecollectionCell(f._category, f, editableRecollection));
+  return tr;
+}
+
+function renderCombined() {
+  const all = getAllFailuresFlat();
   const now = new Date();
-  const today = list.filter((f) => isSameLocalDay(f.Timestamp, now)).length;
+  animateStatValue(document.querySelector('[data-combined-stat="total"]'), all.length);
+  animateStatValue(document.querySelector('[data-combined-stat="before"]'), all.filter((f) => f._category === 'before').length);
+  animateStatValue(document.querySelector('[data-combined-stat="after"]'), all.filter((f) => f._category === 'after').length);
+  animateStatValue(document.querySelector('[data-combined-stat="today"]'), all.filter((f) => isSameLocalDay(f.Timestamp, now)).length);
 
-  animateStatValue(document.querySelector(`[data-stat="${category}-total"]`), list.length);
-  animateStatValue(document.querySelector(`[data-stat="${category}-today"]`), today);
-
-  const tbody = document.querySelector(`[data-body="${category}"]`);
-  const table = document.querySelector(`[data-table="${category}"]`);
-  const emptyState = document.querySelector(`[data-empty="${category}"]`);
+  const tbody = el('combinedTableBody');
+  const table = el('combinedTable');
+  const emptyState = el('combinedEmptyState');
   tbody.innerHTML = '';
 
-  if (!list.length) {
+  if (!all.length) {
     table.classList.add('hidden');
     emptyState.classList.add('visible');
     return;
@@ -230,35 +259,9 @@ function renderCategory(category) {
   table.classList.remove('hidden');
   emptyState.classList.remove('visible');
 
-  [...list].reverse().forEach((f) => {
-    const tr = document.createElement('tr');
-    [
-      formatTimestamp(f.Timestamp),
-      f.SampleID,
-      f.OrderID,
-      f.PatientName,
-      f.HospitalName,
-      f.TestName,
-      f.FailureType,
-      f.Reason,
-      f.ReportedBy,
-      f.MailSent,
-    ].forEach((value) => {
-      const td = document.createElement('td');
-      td.textContent = value || '';
-      tr.appendChild(td);
-    });
-
-    tr.appendChild(buildImagesCell(f));
-    tr.appendChild(buildRecollectionCell(category, f, true));
-
-    tbody.appendChild(tr);
-  });
-}
-
-function renderDashboard() {
-  renderCategory('before');
-  renderCategory('after');
+  [...all]
+    .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
+    .forEach((f) => tbody.appendChild(buildFailureRow(f, true)));
 }
 
 async function fetchFailures() {
@@ -267,8 +270,7 @@ async function fetchFailures() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to load failures');
     state.failures = { before: data.before || [], after: data.after || [] };
-    renderDashboard();
-    if (state.role === 'manager') renderManagerView();
+    renderActiveView();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -279,6 +281,7 @@ function resetReportForm() {
     'reportTestName', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
     el(id).value = '';
   });
+  el('reportCategory').value = '';
   el('reportBillImage').value = '';
   el('reportReferenceImages').value = '';
   el('reportModalError').hidden = true;
@@ -397,25 +400,22 @@ async function runOcrOnBillImage(file) {
 function populateFailureTypeSelect(category) {
   const select = el('reportFailureType');
   select.innerHTML = '<option value="" disabled selected>Select…</option>';
-  FAILURE_TYPES[category].forEach((type) => {
+  (FAILURE_TYPES[category] || []).forEach((type) => {
     const opt = document.createElement('option');
     opt.value = type;
     opt.textContent = type;
     select.appendChild(opt);
   });
+  select.disabled = !FAILURE_TYPES[category];
 }
 
-function openReportModal(category) {
+function openReportModal() {
   const overlay = el('reportFailureModalOverlay');
-  const badge = el('reportModalCategoryBadge');
-  badge.textContent = category === 'before' ? 'Before Processing' : 'After Processing';
-  badge.className = `cat-pill tone-${category === 'before' ? 'self' : 'fish'}`;
-  overlay.dataset.category = category;
   resetReportForm();
-  populateFailureTypeSelect(category);
+  populateFailureTypeSelect('');
   updateReasonRequiredHint();
   overlay.hidden = false;
-  el('reportOrderId').focus();
+  el('reportCategory').focus();
 }
 
 function updateReasonRequiredHint() {
@@ -433,10 +433,15 @@ function closeReportModal() {
 }
 
 async function submitReport() {
-  const overlay = el('reportFailureModalOverlay');
-  const category = overlay.dataset.category;
+  const category = el('reportCategory').value;
   const errorBox = el('reportModalError');
   errorBox.hidden = true;
+
+  if (category !== 'before' && category !== 'after') {
+    errorBox.textContent = 'Please select a Category (Before or After Processing).';
+    errorBox.hidden = false;
+    return;
+  }
 
   const fields = {
     category,
@@ -567,33 +572,7 @@ function renderManagerTable(filtered) {
 
   [...filtered]
     .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
-    .forEach((f) => {
-      const tr = document.createElement('tr');
-
-      const tdTimestamp = document.createElement('td');
-      tdTimestamp.textContent = formatTimestamp(f.Timestamp);
-      tr.appendChild(tdTimestamp);
-
-      const tdCategory = document.createElement('td');
-      const catPill = document.createElement('span');
-      catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
-      catPill.textContent = f._category === 'before' ? 'Before' : 'After';
-      tdCategory.appendChild(catPill);
-      tr.appendChild(tdCategory);
-
-      [
-        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent,
-      ].forEach((value) => {
-        const td = document.createElement('td');
-        td.textContent = value || '';
-        tr.appendChild(td);
-      });
-
-      tr.appendChild(buildImagesCell(f));
-      tr.appendChild(buildRecollectionCell(f._category, f, false));
-
-      tbody.appendChild(tr);
-    });
+    .forEach((f) => tbody.appendChild(buildFailureRow(f, false)));
 }
 
 function buildDateRange(fromStr, toStr) {
@@ -609,44 +588,18 @@ function buildDateRange(fromStr, toStr) {
   return days;
 }
 
-function smoothPath(points) {
-  const n = points.length;
-  if (n < 2) return '';
-  if (n === 2) {
-    return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+function niceTicks(maxVal) {
+  const max = Math.max(1, maxVal);
+  const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+  let step = steps[steps.length - 1];
+  for (const s of steps) {
+    if (max / s <= 4) { step = s; break; }
   }
-
-  const dx = [];
-  const slope = [];
-  for (let i = 0; i < n - 1; i += 1) {
-    dx[i] = points[i + 1].x - points[i].x;
-    slope[i] = dx[i] === 0 ? 0 : (points[i + 1].y - points[i].y) / dx[i];
-  }
-
-  const m = new Array(n);
-  m[0] = slope[0];
-  m[n - 1] = slope[n - 2];
-  for (let i = 1; i < n - 1; i += 1) {
-    if (slope[i - 1] === 0 || slope[i] === 0 || slope[i - 1] * slope[i] < 0) {
-      m[i] = 0;
-    } else {
-      const w1 = 2 * dx[i] + dx[i - 1];
-      const w2 = dx[i] + 2 * dx[i - 1];
-      m[i] = (w1 + w2) / (w1 / slope[i - 1] + w2 / slope[i]);
-    }
-  }
-
-  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  for (let i = 0; i < n - 1; i += 1) {
-    const p0 = points[i];
-    const p1 = points[i + 1];
-    const cp1x = p0.x + dx[i] / 3;
-    const cp1y = p0.y + (m[i] * dx[i]) / 3;
-    const cp2x = p1.x - dx[i] / 3;
-    const cp2y = p1.y - (m[i + 1] * dx[i]) / 3;
-    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
-  }
-  return d;
+  let niceMax = Math.ceil(max / step) * step;
+  if (niceMax === max) niceMax += step;
+  const ticks = [];
+  for (let v = 0; v <= niceMax + 1e-9; v += step) ticks.push(Math.round(v));
+  return { niceMax, ticks };
 }
 
 function renderTrendChart(filtered) {
@@ -663,75 +616,112 @@ function renderTrendChart(filtered) {
     if (map.has(key)) map.set(key, map.get(key) + 1);
   });
 
-  const width = 640;
-  const height = 220;
-  const padL = 28;
-  const padR = 12;
-  const padT = 12;
-  const padB = 26;
+  const width = 1120;
+  const height = 320;
+  const padL = 40;
+  const padR = 20;
+  const padT = 18;
+  const padB = 34;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
-  const maxCount = Math.max(1, ...days.map((d) => beforeCounts.get(dayKey(d))), ...days.map((d) => afterCounts.get(dayKey(d))));
 
-  const xFor = (i) => padL + (days.length <= 1 ? plotW / 2 : (i / (days.length - 1)) * plotW);
-  const yFor = (v) => padT + plotH - (v / maxCount) * plotH;
-  const linePoints = (counts) => days.map((d, i) => ({ x: xFor(i), y: yFor(counts.get(dayKey(d))) }));
-  const pathFor = (counts) => smoothPath(linePoints(counts));
-  const areaFor = (counts) => {
-    const pts = linePoints(counts);
-    const baseline = yFor(0).toFixed(1);
-    return `${smoothPath(pts)} L ${pts[pts.length - 1].x.toFixed(1)} ${baseline} L ${pts[0].x.toFixed(1)} ${baseline} Z`;
-  };
-  const pointsFor = (counts, colorVar) => days.map((d, i) => {
-    const v = counts.get(dayKey(d));
-    return `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="3" fill="${colorVar}"><title>${escapeHtml(d.toDateString())}: ${v}</title></circle>`;
+  const dayData = days.map((d) => {
+    const before = beforeCounts.get(dayKey(d));
+    const after = afterCounts.get(dayKey(d));
+    return {
+      date: d,
+      label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      before,
+      after,
+      total: before + after,
+    };
+  });
+  const { niceMax, ticks } = niceTicks(Math.max(1, ...dayData.map((x) => Math.max(x.before, x.after))));
+
+  const slotW = plotW / days.length;
+  const xCenter = (i) => padL + (i + 0.5) * slotW;
+  const yFor = (v) => padT + plotH - (v / niceMax) * plotH;
+
+  const yGrid = ticks.map((t) => {
+    const y = yFor(t).toFixed(1);
+    return `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
+      + `<text x="${padL - 8}" y="${(yFor(t) + 3.5).toFixed(1)}" font-size="10" fill="var(--text-muted)" text-anchor="end">${t}</text>`;
   }).join('');
 
-  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((t) => {
-    const y = (padT + plotH * (1 - t)).toFixed(1);
-    return `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1" />`;
-  }).join('');
-
-  const labelEvery = Math.max(1, Math.ceil(days.length / 7));
-  const xLabels = days.map((d, i) => {
+  const labelEvery = Math.max(1, Math.ceil(days.length / 8));
+  const xLabels = dayData.map((x, i) => {
     if (i % labelEvery !== 0 && i !== days.length - 1) return '';
-    return `<text x="${xFor(i).toFixed(1)}" y="${height - 6}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</text>`;
+    return `<text x="${xCenter(i).toFixed(1)}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(x.label)}</text>`;
   }).join('');
+
+  const lineFor = (key, color) => {
+    const points = dayData.map((x, i) => `${xCenter(i).toFixed(1)},${yFor(x[key]).toFixed(1)}`).join(' ');
+    const dots = dayData.map((x, i) => `<circle cx="${xCenter(i).toFixed(1)}" cy="${yFor(x[key]).toFixed(1)}" r="3" fill="${color}" />`).join('');
+    return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />${dots}`;
+  };
+  const lines = lineFor('before', 'var(--cat-self)') + lineFor('after', 'var(--cat-fish)');
 
   container.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failures over time">
-      <defs>
-        <linearGradient id="trendFillBefore" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--cat-self)" stop-opacity="0.25" />
-          <stop offset="100%" stop-color="var(--cat-self)" stop-opacity="0" />
-        </linearGradient>
-        <linearGradient id="trendFillAfter" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--cat-fish)" stop-opacity="0.25" />
-          <stop offset="100%" stop-color="var(--cat-fish)" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      ${gridLines}
-      <path d="${areaFor(beforeCounts)}" fill="url(#trendFillBefore)" stroke="none" />
-      <path d="${areaFor(afterCounts)}" fill="url(#trendFillAfter)" stroke="none" />
-      <path d="${pathFor(beforeCounts)}" fill="none" stroke="var(--cat-self)" stroke-width="2" stroke-linecap="round" />
-      <path d="${pathFor(afterCounts)}" fill="none" stroke="var(--cat-fish)" stroke-width="2" stroke-linecap="round" />
-      ${pointsFor(beforeCounts, 'var(--cat-self)')}
-      ${pointsFor(afterCounts, 'var(--cat-fish)')}
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failures over time (before vs. after processing)" preserveAspectRatio="xMidYMid meet">
+      ${yGrid}
+      <rect class="bar-hover" x="0" y="${padT}" width="0" height="${plotH}" rx="4" fill="var(--accent-wash)" style="display:none" />
+      ${lines}
       ${xLabels}
     </svg>
+    <div class="trend-tooltip" hidden></div>
     <div class="chart-legend">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-self)"></span>Before Processing</span>
       <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-fish)"></span>After Processing</span>
     </div>
   `;
+
+  const svg = container.querySelector('svg');
+  const tooltip = container.querySelector('.trend-tooltip');
+  const hoverBand = svg.querySelector('.bar-hover');
+
+  const onMove = (e) => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const vbX = ((e.clientX - rect.left) / rect.width) * width;
+    const i = Math.floor((vbX - padL) / slotW);
+    if (i < 0 || i >= dayData.length) { onLeave(); return; }
+    const x = dayData[i];
+
+    hoverBand.setAttribute('x', (xCenter(i) - slotW / 2).toFixed(1));
+    hoverBand.setAttribute('width', slotW.toFixed(1));
+    hoverBand.style.display = '';
+
+    tooltip.innerHTML = `
+      <div class="tt-date">${escapeHtml(x.label)}</div>
+      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-self)"></span>Before Processing<span class="tt-val">${x.before}</span></div>
+      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-fish)"></span>After Processing<span class="tt-val">${x.after}</span></div>
+      <div class="tt-row tt-total">Total<span class="tt-val">${x.total}</span></div>`;
+    tooltip.hidden = false;
+    const pxX = (xCenter(i) / width) * rect.width;
+    const ttW = tooltip.offsetWidth;
+    let left = pxX + 14;
+    if (left + ttW > rect.width) left = pxX - ttW - 14;
+    tooltip.style.left = `${Math.max(4, left)}px`;
+    tooltip.style.top = '14px';
+  };
+  const onLeave = () => {
+    tooltip.hidden = true;
+    hoverBand.style.display = 'none';
+  };
+  svg.addEventListener('mousemove', onMove);
+  svg.addEventListener('mouseleave', onLeave);
 }
 
 function renderBreakdownChart(filtered) {
   const container = el('breakdownChart');
   const counts = new Map();
+  const catCounts = new Map();
   filtered.forEach((f) => {
     const type = f.FailureType || '(none)';
     counts.set(type, (counts.get(type) || 0) + 1);
+    const cats = catCounts.get(type) || { before: 0, after: 0 };
+    cats[f._category === 'before' ? 'before' : 'after'] += 1;
+    catCounts.set(type, cats);
   });
   const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 
@@ -740,39 +730,88 @@ function renderBreakdownChart(filtered) {
     return;
   }
 
-  const width = 680;
-  const rowHeight = 30;
+  const width = 1120;
+  const rowHeight = 34;
   const padTop = 8;
   const padL = 8;
-  const padR = 46;
-  const labelWidth = 300;
-  const barAreaW = width - padL - padR - labelWidth;
-  const height = padTop * 2 + entries.length * rowHeight;
-  const maxCount = Math.max(...entries.map(([, c]) => c));
+  const labelWidth = 280;
+  const padR = 44;
+  const padBottom = 28;
+  const plotX0 = padL + labelWidth;
+  const plotX1 = width - padR;
+  const plotW = plotX1 - plotX0;
+  const height = padTop + entries.length * rowHeight + padBottom;
+  const plotBottom = padTop + entries.length * rowHeight;
+  const { niceMax, ticks } = niceTicks(Math.max(...entries.map(([, c]) => c)));
+  const xScale = (v) => plotX0 + (v / niceMax) * plotW;
+  const truncate = (s) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
 
-  const bars = entries.map(([type, count], i) => {
+  const xGrid = ticks.map((t) => {
+    const x = xScale(t).toFixed(1);
+    return `<line x1="${x}" y1="${padTop}" x2="${x}" y2="${plotBottom}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
+      + `<text x="${x}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${t}</text>`;
+  }).join('');
+
+  const rows = entries.map(([type, count], i) => {
     const y = padTop + i * rowHeight;
-    const barW = Math.max(2, (count / maxCount) * barAreaW);
-    const label = type.length > 46 ? `${type.slice(0, 45)}…` : type;
+    const barY = y + 6;
+    const barH = rowHeight - 12;
+    const barW = Math.max(3, xScale(count) - plotX0);
+    const cats = catCounts.get(type);
+    const color = cats.after > cats.before ? 'var(--cat-fish)' : 'var(--cat-self)';
     return `
-      <text x="${padL}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)">${escapeHtml(label)}<title>${escapeHtml(type)}</title></text>
-      <rect x="${padL + labelWidth}" y="${(y + 5).toFixed(1)}" width="${barAreaW}" height="${rowHeight - 10}" rx="4" fill="var(--page-plane)" />
-      <rect x="${padL + labelWidth}" y="${(y + 5).toFixed(1)}" width="${barW.toFixed(1)}" height="${rowHeight - 10}" rx="4" fill="url(#breakdownBarFill)"><title>${escapeHtml(type)}: ${count}</title></rect>
-      <text x="${(padL + labelWidth + barW + 6).toFixed(1)}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)">${count}</text>
+      <rect class="bd-track" x="${plotX0}" y="${barY.toFixed(1)}" width="${plotW}" height="${barH}" rx="5" fill="var(--page-plane)" opacity="0" />
+      <text x="${plotX0 - 10}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)" text-anchor="end">${escapeHtml(truncate(type))}<title>${escapeHtml(type)}</title></text>
+      <rect x="${plotX0}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="5" fill="${color}" />
+      <text x="${(plotX0 + barW + 8).toFixed(1)}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)">${count}</text>
     `;
   }).join('');
 
   container.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failure type breakdown">
-      <defs>
-        <linearGradient id="breakdownBarFill" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.75" />
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity="1" />
-        </linearGradient>
-      </defs>
-      ${bars}
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failure type breakdown" preserveAspectRatio="xMidYMid meet">
+      ${xGrid}
+      ${rows}
     </svg>
+    <div class="trend-tooltip" hidden></div>
+    <div class="chart-legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-self)"></span>Mostly Before Processing</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-fish)"></span>Mostly After Processing</span>
+    </div>
   `;
+
+  const svg = container.querySelector('svg');
+  const tooltip = container.querySelector('.trend-tooltip');
+  const tracks = Array.from(svg.querySelectorAll('.bd-track'));
+
+  const onMove = (e) => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const vbY = ((e.clientY - rect.top) / rect.height) * height;
+    const i = Math.floor((vbY - padTop) / rowHeight);
+    tracks.forEach((t, k) => { t.setAttribute('opacity', k === i ? '1' : '0'); });
+    if (i < 0 || i >= entries.length) { tooltip.hidden = true; return; }
+    const [type, count] = entries[i];
+    const cats = catCounts.get(type);
+    tooltip.innerHTML = `
+      <div class="tt-date">${escapeHtml(type)}</div>
+      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-self)"></span>Before Processing<span class="tt-val">${cats.before}</span></div>
+      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-fish)"></span>After Processing<span class="tt-val">${cats.after}</span></div>
+      <div class="tt-row tt-total">Total<span class="tt-val">${count}</span></div>`;
+    tooltip.hidden = false;
+    const ttW = tooltip.offsetWidth;
+    const pxX = e.clientX - rect.left;
+    let left = pxX + 14;
+    if (left + ttW > rect.width) left = pxX - ttW - 14;
+    tooltip.style.left = `${Math.max(4, left)}px`;
+    const rowPxY = ((padTop + i * rowHeight) / height) * rect.height;
+    tooltip.style.top = `${rowPxY}px`;
+  };
+  const onLeave = () => {
+    tooltip.hidden = true;
+    tracks.forEach((t) => t.setAttribute('opacity', '0'));
+  };
+  svg.addEventListener('mousemove', onMove);
+  svg.addEventListener('mouseleave', onLeave);
 }
 
 function renderManagerView() {
@@ -790,7 +829,11 @@ function renderManagerView() {
 }
 
 document.querySelectorAll('.report-failure-btn').forEach((btn) => {
-  btn.addEventListener('click', () => openReportModal(btn.dataset.category));
+  btn.addEventListener('click', () => openReportModal());
+});
+el('reportCategory').addEventListener('change', () => {
+  populateFailureTypeSelect(el('reportCategory').value);
+  updateReasonRequiredHint();
 });
 el('roleWetLab').addEventListener('click', () => setRole('wetlab'));
 el('roleCoordinator').addEventListener('click', () => setRole('coordinator'));
