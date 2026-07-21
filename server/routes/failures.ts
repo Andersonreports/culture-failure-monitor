@@ -61,9 +61,6 @@ router.post(
       res.status(400).json({ error: "failureType must be one of the listed options for this category" });
       return;
     }
-    // The failure type usually already says what went wrong, so Reason is
-    // optional - except when "Other" is chosen, where it's the only field
-    // that captures the actual cause.
     if (body.failureType === "Other" && !body.reason?.trim()) {
       res.status(400).json({ error: 'reason is required when failure type is "Other"' });
       return;
