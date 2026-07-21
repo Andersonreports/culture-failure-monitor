@@ -35,6 +35,7 @@ export const FAILURE_HEADERS = [
   'ReferenceImageLinks',
   'FailureType',
   'RecollectionStatus',
+  'MailSent',
 ] as const;
 
 export interface FailureRow {
@@ -51,6 +52,7 @@ export interface FailureRow {
   ReferenceImageLinks: string;
   FailureType: string;
   RecollectionStatus: string;
+  MailSent: string;
   rowNumber: number;
 }
 

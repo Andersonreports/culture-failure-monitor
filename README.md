@@ -79,6 +79,18 @@ Why a time trigger and not `onEdit`/`onChange`: the app appends rows via the
 Sheets API, and API writes do **not** fire edit/change triggers — only edits by
 a human or by Apps Script itself do. So the script polls for new rows instead.
 
+The mail goes **to** `COORDINATOR_EMAIL`, **cc** `CC_EMAIL` (both set at the top
+of the script). When the initial mail is sent, the script stamps the send time
+into a **`MailSent`** column on that row (shown in the dashboard tables), so you
+can see at a glance which failures were notified.
+
+**72-hour reminder:** on each run the script also checks every row whose mail was
+sent but whose recollection is still not `Resolved`. If more than
+`REMINDER_HOURS` (default 72) have passed since the failure was reported, it
+sends a reminder email and records the time in a `ReminderSent` tracking column
+so the reminder fires only once. Marking the row `Resolved` in the dashboard
+before the 72 hours are up cancels the reminder.
+
 Setup (one time):
 
 1. From the **"Culture Failure Monitor - Failure Log"** spreadsheet, open

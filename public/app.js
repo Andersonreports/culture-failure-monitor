@@ -242,6 +242,7 @@ function renderCategory(category) {
       f.FailureType,
       f.Reason,
       f.ReportedBy,
+      f.MailSent,
     ].forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value || '';
@@ -581,7 +582,7 @@ function renderManagerTable(filtered) {
       tr.appendChild(tdCategory);
 
       [
-        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
+        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent,
       ].forEach((value) => {
         const td = document.createElement('td');
         td.textContent = value || '';

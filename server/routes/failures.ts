@@ -128,6 +128,7 @@ router.post(
         ReferenceImageLinks: referenceImageLinks.join("; "),
         FailureType: body.failureType,
         RecollectionStatus: "Pending",
+        MailSent: "",
       };
 
       const spreadsheetId = await googleSheets.appendFailureRow(category, rowByHeader);
