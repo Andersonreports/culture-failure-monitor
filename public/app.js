@@ -1,7 +1,5 @@
 const REFRESH_INTERVAL_MS = 60000;
 
-// Mirrors server/types.ts FAILURE_TYPES - kept in sync manually since it's a
-// short static list, not worth a round-trip endpoint just to fetch it.
 const FAILURE_TYPES = {
   before: [
     'Onco blocks - low tumor %',
@@ -232,7 +230,6 @@ function renderCategory(category) {
   table.classList.remove('hidden');
   emptyState.classList.remove('visible');
 
-  // Most recent first.
   [...list].reverse().forEach((f) => {
     const tr = document.createElement('tr');
     [
@@ -245,6 +242,7 @@ function renderCategory(category) {
       f.FailureType,
       f.Reason,
       f.ReportedBy,
+      f.MailSent,
     ].forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value || '';
@@ -291,62 +289,33 @@ function resetReportForm() {
   ocrStatus.textContent = '';
 }
 
-// Tailored to the Anderson Diagnostics bill/receipt layout, which uses
-// "Label Value" with NO colon separator (e.g. "Patient No. AKP0000014662"),
-// unlike a generic "Label: Value" form. This is deliberately specific to
-// that one template rather than a generic bill parser. OCR text is noisy
-// (misread characters, garbled table borders) so this is a head start only -
-// the wet lab team reviews/corrects every field before submitting.
 function parseOcrText(text) {
   const found = {};
-  const norm = text.replace(/\s+/g, ' ').trim(); // collapse OCR'd line breaks for easier matching
+  const norm = text.replace(/\s+/g, ' ').trim();
 
-  // Sample ID <- "Patient No. <value>"
   const patientNo = norm.match(/patient\s*no\.?\s*([A-Za-z0-9]+)/i);
   if (patientNo) found.reportSampleId = patientNo[1];
 
-  // Order ID <- first part of "Bill/Lab No <value1> / <value2>"
   const billLabNo = norm.match(/bill\s*\/?\s*lab\s*no\.?\s*([A-Za-z0-9]+)\s*\/\s*([A-Za-z0-9]+)/i);
   if (billLabNo) found.reportOrderId = billLabNo[1];
 
-  // Patient Name <- "Name <value>" up to the age/gender parenthesis, e.g.
-  // "Name MRS.SELVI (51 Y 0 M 0 D | Female)". \bname (word-boundary) avoids
-  // matching "TestName"/"PanelName" which have no boundary before "Name".
   const name = norm.match(/\bname\s+([A-Za-z.\s]+?)\s*[([]/i);
   if (name) found.reportPatientName = name[1].trim();
 
-  // Hospital Name <- the "PanelName" field (referring hospital/centre). It
-  // reliably sits between the "Bill User <name>" line and the "# Test Code"
-  // table header, so we grab that whole region rather than anchoring on the
-  // "PanelName" label - the label is often mis-OCR'd (e.g. "PancIName") and,
-  // when the name wraps to two lines, the label gets interleaved into the
-  // value. We then strip that label token (however it was garbled) and any
-  // leading punctuation. Best-effort; the field stays editable for review.
   const panelRegion = norm.match(/bill\s*user\s+\S+\s+(.*?)\s*(?:#|test\s*code|test\s*name)/i);
   if (panelRegion) {
     const hospital = panelRegion[1]
-      // Remove the "PanelName" label token however OCR garbled it (e.g.
-      // "PancIName", "Panc¢IName") - \S* tolerates stray characters inside it.
       .replace(/pan\S*name/ig, ' ')
       .replace(/\s{2,}/g, ' ')
-      // Strip leading junk (table-border "|", commas, spaces, OCR specks).
       .replace(/^[^A-Za-z0-9]+/, '')
       .trim();
     if (hospital.length > 3) found.reportHospitalName = hospital;
   }
 
-  // Test Name <- best-effort: the text between the "TestName ... Total/Rate"
-  // column headers and the "Bill Amount" line. Starts at an ALL-CAPS token
-  // (the test code/name) but then allows following mixed-case words so names
-  // like "NIPS - All Chromosomes" or "HCV RT PCR QUANTITATIVE" are captured
-  // whole. Table borders/serial numbers sometimes OCR as extra noise - check
-  // and trim this field before submitting.
   const testRow = norm.match(/test\s*name.*?(?:total|rate)\s*(.+?)\s*(?:bill\s*amount|rate)/i);
   if (testRow) {
     const capsRuns = testRow[1].match(/[A-Z]{2,}(?:[\s-]+[A-Za-z0-9]{2,})*/g);
     if (capsRuns && capsRuns.length) {
-      // Trailing numbers are the rate/amount columns bleeding in (e.g.
-      // "NIPS - All Chromosomes 5000") - strip them off the test name.
       found.reportTestName = capsRuns
         .sort((a, b) => b.length - a.length)[0]
         .replace(/[\s\d.,]+$/, '')
@@ -357,11 +326,6 @@ function parseOcrText(text) {
   return found;
 }
 
-// These bill scans are often ~800px wide, which puts the small patient/table
-// text below Tesseract's reliable size (it wants ~30px+ cap height). Upscaling
-// to ~2000px wide and converting to grayscale+contrast dramatically improves
-// recognition of that middle section. Returns a canvas Tesseract can read
-// directly; falls back to the original file if anything goes wrong.
 function preprocessBillImage(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -374,8 +338,6 @@ function preprocessBillImage(file) {
         canvas.width = Math.round(img.naturalWidth * scale);
         canvas.height = Math.round(img.naturalHeight * scale);
         const ctx = canvas.getContext('2d');
-        // ctx.filter is supported in modern Chrome/Firefox/Safari; if a browser
-        // ignores it, we still benefit from the upscale alone.
         ctx.filter = 'grayscale(1) contrast(1.3)';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
@@ -551,8 +513,6 @@ function setRole(role) {
   renderRoleUI();
 }
 
-// ---- Manager view: filtering, unified table, charts ----
-
 function getAllFailuresFlat() {
   const before = (state.failures.before || []).map((f) => ({ ...f, _category: 'before' }));
   const after = (state.failures.after || []).map((f) => ({ ...f, _category: 'after' }));
@@ -622,7 +582,7 @@ function renderManagerTable(filtered) {
       tr.appendChild(tdCategory);
 
       [
-        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy,
+        f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent,
       ].forEach((value) => {
         const td = document.createElement('td');
         td.textContent = value || '';
@@ -649,12 +609,6 @@ function buildDateRange(fromStr, toStr) {
   return days;
 }
 
-// Monotone cubic interpolation (Fritsch-Carlson tangents -> Hermite -> Bezier),
-// the same technique behind d3's curveMonotoneX. Unlike a plain Catmull-Rom
-// smooth curve, this never overshoots past the local min/max between two
-// points - important here since a flat run of zeros followed by a sharp rise
-// would otherwise dip slightly below the baseline, which reads as a negative
-// count (impossible) rather than a rendering nuance.
 function smoothPath(points) {
   const n = points.length;
   if (n < 2) return '';

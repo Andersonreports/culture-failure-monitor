@@ -43,9 +43,6 @@ export interface UploadedImage {
   link: string;
 }
 
-// Uploads one image to the app's Drive folder and makes it viewable by
-// anyone with the link (so the coordinator can open it from a WhatsApp
-// message without needing to be signed into a specific Google account).
 export async function uploadImage(
   auth: OAuth2Client,
   buffer: Uint8Array,

@@ -46,7 +46,6 @@ body {
 
 svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-/* Header */
 
 .app-header {
   display: flex;
@@ -143,7 +142,6 @@ svg { width: 16px; height: 16px; flex-shrink: 0; }
 .sheet-status a { color: var(--accent); margin-left: 2px; text-decoration: none; font-weight: 600; }
 .sheet-status a:hover { text-decoration: underline; }
 
-/* Layout */
 
 main {
   max-width: 1400px;
@@ -186,9 +184,6 @@ main {
   box-shadow: var(--shadow-sm);
   padding: 0.9rem 1.1rem;
   transition: box-shadow 0.2s ease;
-  /* Without this, a grid item's minimum width defaults to its content's
-     natural size - a wide table (many nowrap columns) would force this
-     panel past its 1fr share instead of scrolling internally. */
   min-width: 0;
 }
 .category-panel.cat-before { border-left-color: var(--cat-self); }
@@ -249,7 +244,6 @@ main {
 .stat-value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
 .stat-label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 
-/* Manager view: filters + charts */
 
 .filter-bar {
   display: flex;
@@ -334,7 +328,6 @@ main {
   .chart-grid { grid-template-columns: 1fr; }
 }
 
-/* Buttons */
 
 button {
   display: inline-flex;
@@ -374,7 +367,6 @@ button.danger:hover:not(:disabled) { opacity: 1; transform: translateY(-1px); bo
 
 button.ghost { background: transparent; }
 
-/* Form controls (report modal) */
 
 label {
   font-size: 0.8rem;
@@ -423,7 +415,6 @@ input[type="file"] {
 .ocr-status.ocr-warn { background: var(--status-warning-wash); color: var(--status-warning); }
 .ocr-status.ocr-done { background: var(--status-good-wash); color: var(--status-good); }
 
-/* Table */
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 
@@ -474,7 +465,6 @@ tbody tr:last-child td { border-bottom: none; }
 .empty-state.visible { display: flex; }
 .failures-table.hidden { display: none; }
 
-/* Toasts */
 
 .toast-area {
   position: fixed;
@@ -514,7 +504,6 @@ tbody tr:last-child td { border-bottom: none; }
   to { transform: rotate(360deg); }
 }
 
-/* Report failure modal */
 
 .modal-overlay {
   position: fixed;

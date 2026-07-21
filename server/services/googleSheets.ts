@@ -69,12 +69,8 @@ interface SheetsHandle {
   auth: OAuth2Client;
 }
 
-// Concurrent callers (e.g. GET /api/failures reading both tabs at once) must
-// never race to create two separate spreadsheets. Memoize the in-flight
-// creation so every caller during a single server run awaits the same result.
 let ensureSpreadsheetPromise: Promise<SheetsHandle> | null = null;
 
-// Reads a tab's live header row (row 1) as an array of column names.
 async function getSheetHeaders(
   sheets: ReturnType<typeof google.sheets>,
   spreadsheetId: string,
@@ -87,11 +83,6 @@ async function getSheetHeaders(
   return (res.data.values && res.data.values[0] ? res.data.values[0] : []) as string[];
 }
 
-// Ensures every canonical field has a column, WITHOUT disturbing the existing
-// layout. A brand-new (empty) tab gets the full header row; an existing tab
-// keeps whatever column order it has (the user may have reordered/renamed to
-// taste) and only gets genuinely-missing canonical fields appended at the end.
-// Because all reads/writes match columns by NAME, existing data never shifts.
 async function syncHeaders(sheets: ReturnType<typeof google.sheets>, spreadsheetId: string) {
   await Promise.all(
     Object.values(CATEGORIES).map(async (tab) => {
@@ -152,7 +143,6 @@ async function ensureSpreadsheet(): Promise<SheetsHandle> {
       await syncHeaders(sheets, spreadsheetId);
       return { sheets, spreadsheetId, auth };
     })().catch((err) => {
-      // Don't cache a failed attempt (e.g. not authenticated yet) - let the next call retry.
       ensureSpreadsheetPromise = null;
       throw err;
     });
@@ -166,9 +156,6 @@ function tabFor(category: FailureCategory): string {
   return tab;
 }
 
-// Appends a new failure. `values` is keyed by field name; the row is ordered
-// to match the sheet's ACTUAL header row so each value lands in its column no
-// matter how the columns are arranged.
 async function appendFailureRow(
   category: FailureCategory,
   values: Record<string, string>,
@@ -191,8 +178,6 @@ async function appendFailureRow(
 async function listFailures(category: FailureCategory): Promise<FailureRow[]> {
   const { sheets, spreadsheetId } = await ensureSpreadsheet();
   const tab = tabFor(category);
-  // Read header + data together and map each cell by its column NAME, so
-  // manually reordered/renamed columns still line up with the right field.
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range: `'${tab}'!A1:ZZ`,
@@ -212,7 +197,6 @@ async function listFailures(category: FailureCategory): Promise<FailureRow[]> {
   });
 }
 
-// 1-based column index -> spreadsheet column letter(s) (1 -> A, 27 -> AA, ...).
 function columnLetter(oneBasedIndex: number): string {
   let n = oneBasedIndex;
   let letters = "";
@@ -232,8 +216,6 @@ async function updateFailureField(
 ): Promise<void> {
   const { sheets, spreadsheetId } = await ensureSpreadsheet();
   const tab = tabFor(category);
-  // Resolve the column from the sheet's live header row (falling back to the
-  // canonical order) so we write to the right cell even if columns moved.
   const headers = await getSheetHeaders(sheets, spreadsheetId, tab);
   let columnIndex = headers.indexOf(header);
   if (columnIndex === -1) columnIndex = FAILURE_HEADERS.indexOf(header);
@@ -253,9 +235,6 @@ async function getSheetUrl(): Promise<string | null> {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
 }
 
-// Shared OAuth2Client for anything else that needs to call a Google API on
-// this user's behalf (e.g. Drive uploads in routes/failures.ts) - reuses the
-// same memoized session instead of re-authenticating separately.
 async function getAuthClient(): Promise<OAuth2Client> {
   const { auth } = await ensureSpreadsheet();
   return auth;
