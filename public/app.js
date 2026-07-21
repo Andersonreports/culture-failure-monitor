@@ -1,7 +1,5 @@
 const REFRESH_INTERVAL_MS = 60000;
 
-// Mirrors server/types.ts FAILURE_TYPES - kept in sync manually since it's a
-// short static list, not worth a round-trip endpoint just to fetch it.
 const FAILURE_TYPES = {
   before: [
     'Onco blocks - low tumor %',
@@ -214,9 +212,6 @@ async function toggleRecollection(category, rowNumber, currentStatus) {
   }
 }
 
-// Builds one <tr> for a flattened failure (has ._category). Used by both the
-// combined main table and the manager table; only the recollection cell's
-// editability differs.
 function buildFailureRow(f, editableRecollection) {
   const tr = document.createElement('tr');
 
@@ -231,7 +226,7 @@ function buildFailureRow(f, editableRecollection) {
   tdCat.appendChild(catPill);
   tr.appendChild(tdCat);
 
-  [f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy]
+  [f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent]
     .forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value || '';
@@ -297,62 +292,33 @@ function resetReportForm() {
   ocrStatus.textContent = '';
 }
 
-// Tailored to the Anderson Diagnostics bill/receipt layout, which uses
-// "Label Value" with NO colon separator (e.g. "Patient No. AKP0000014662"),
-// unlike a generic "Label: Value" form. This is deliberately specific to
-// that one template rather than a generic bill parser. OCR text is noisy
-// (misread characters, garbled table borders) so this is a head start only -
-// the wet lab team reviews/corrects every field before submitting.
 function parseOcrText(text) {
   const found = {};
-  const norm = text.replace(/\s+/g, ' ').trim(); // collapse OCR'd line breaks for easier matching
+  const norm = text.replace(/\s+/g, ' ').trim();
 
-  // Sample ID <- "Patient No. <value>"
   const patientNo = norm.match(/patient\s*no\.?\s*([A-Za-z0-9]+)/i);
   if (patientNo) found.reportSampleId = patientNo[1];
 
-  // Order ID <- first part of "Bill/Lab No <value1> / <value2>"
   const billLabNo = norm.match(/bill\s*\/?\s*lab\s*no\.?\s*([A-Za-z0-9]+)\s*\/\s*([A-Za-z0-9]+)/i);
   if (billLabNo) found.reportOrderId = billLabNo[1];
 
-  // Patient Name <- "Name <value>" up to the age/gender parenthesis, e.g.
-  // "Name MRS.SELVI (51 Y 0 M 0 D | Female)". \bname (word-boundary) avoids
-  // matching "TestName"/"PanelName" which have no boundary before "Name".
   const name = norm.match(/\bname\s+([A-Za-z.\s]+?)\s*[([]/i);
   if (name) found.reportPatientName = name[1].trim();
 
-  // Hospital Name <- the "PanelName" field (referring hospital/centre). It
-  // reliably sits between the "Bill User <name>" line and the "# Test Code"
-  // table header, so we grab that whole region rather than anchoring on the
-  // "PanelName" label - the label is often mis-OCR'd (e.g. "PancIName") and,
-  // when the name wraps to two lines, the label gets interleaved into the
-  // value. We then strip that label token (however it was garbled) and any
-  // leading punctuation. Best-effort; the field stays editable for review.
   const panelRegion = norm.match(/bill\s*user\s+\S+\s+(.*?)\s*(?:#|test\s*code|test\s*name)/i);
   if (panelRegion) {
     const hospital = panelRegion[1]
-      // Remove the "PanelName" label token however OCR garbled it (e.g.
-      // "PancIName", "Panc¢IName") - \S* tolerates stray characters inside it.
       .replace(/pan\S*name/ig, ' ')
       .replace(/\s{2,}/g, ' ')
-      // Strip leading junk (table-border "|", commas, spaces, OCR specks).
       .replace(/^[^A-Za-z0-9]+/, '')
       .trim();
     if (hospital.length > 3) found.reportHospitalName = hospital;
   }
 
-  // Test Name <- best-effort: the text between the "TestName ... Total/Rate"
-  // column headers and the "Bill Amount" line. Starts at an ALL-CAPS token
-  // (the test code/name) but then allows following mixed-case words so names
-  // like "NIPS - All Chromosomes" or "HCV RT PCR QUANTITATIVE" are captured
-  // whole. Table borders/serial numbers sometimes OCR as extra noise - check
-  // and trim this field before submitting.
   const testRow = norm.match(/test\s*name.*?(?:total|rate)\s*(.+?)\s*(?:bill\s*amount|rate)/i);
   if (testRow) {
     const capsRuns = testRow[1].match(/[A-Z]{2,}(?:[\s-]+[A-Za-z0-9]{2,})*/g);
     if (capsRuns && capsRuns.length) {
-      // Trailing numbers are the rate/amount columns bleeding in (e.g.
-      // "NIPS - All Chromosomes 5000") - strip them off the test name.
       found.reportTestName = capsRuns
         .sort((a, b) => b.length - a.length)[0]
         .replace(/[\s\d.,]+$/, '')
@@ -363,11 +329,6 @@ function parseOcrText(text) {
   return found;
 }
 
-// These bill scans are often ~800px wide, which puts the small patient/table
-// text below Tesseract's reliable size (it wants ~30px+ cap height). Upscaling
-// to ~2000px wide and converting to grayscale+contrast dramatically improves
-// recognition of that middle section. Returns a canvas Tesseract can read
-// directly; falls back to the original file if anything goes wrong.
 function preprocessBillImage(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
@@ -380,8 +341,6 @@ function preprocessBillImage(file) {
         canvas.width = Math.round(img.naturalWidth * scale);
         canvas.height = Math.round(img.naturalHeight * scale);
         const ctx = canvas.getContext('2d');
-        // ctx.filter is supported in modern Chrome/Firefox/Safari; if a browser
-        // ignores it, we still benefit from the upscale alone.
         ctx.filter = 'grayscale(1) contrast(1.3)';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
@@ -559,8 +518,6 @@ function setRole(role) {
   renderRoleUI();
 }
 
-// ---- Manager view: filtering, unified table, charts ----
-
 function getAllFailuresFlat() {
   const before = (state.failures.before || []).map((f) => ({ ...f, _category: 'before' }));
   const after = (state.failures.after || []).map((f) => ({ ...f, _category: 'after' }));
@@ -631,9 +588,6 @@ function buildDateRange(fromStr, toStr) {
   return days;
 }
 
-// Integer-friendly axis ticks: pick a step that yields ~4-5 gridlines and
-// leave a little headroom above the peak so the top point doesn't touch the
-// frame (matches the reference design's 0..8 axis for a max of 6).
 function niceTicks(maxVal) {
   const max = Math.max(1, maxVal);
   const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -642,7 +596,7 @@ function niceTicks(maxVal) {
     if (max / s <= 4) { step = s; break; }
   }
   let niceMax = Math.ceil(max / step) * step;
-  if (niceMax === max) niceMax += step; // headroom
+  if (niceMax === max) niceMax += step;
   const ticks = [];
   for (let v = 0; v <= niceMax + 1e-9; v += step) ticks.push(Math.round(v));
   return { niceMax, ticks };
@@ -662,8 +616,6 @@ function renderTrendChart(filtered) {
     if (map.has(key)) map.set(key, map.get(key) + 1);
   });
 
-  // viewBox is sized close to the full-width display so it scales ~1:1 (a
-  // narrow viewBox would magnify everything, making the chart absurdly tall).
   const width = 1120;
   const height = 320;
   const padL = 40;
@@ -684,30 +636,24 @@ function renderTrendChart(filtered) {
       total: before + after,
     };
   });
-  // Two separate lines, so the tallest point is the largest daily count in
-  // either series (not the stacked total).
   const { niceMax, ticks } = niceTicks(Math.max(1, ...dayData.map((x) => Math.max(x.before, x.after))));
 
   const slotW = plotW / days.length;
   const xCenter = (i) => padL + (i + 0.5) * slotW;
   const yFor = (v) => padT + plotH - (v / niceMax) * plotH;
 
-  // Horizontal dashed gridlines + y-axis value labels.
   const yGrid = ticks.map((t) => {
     const y = yFor(t).toFixed(1);
     return `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
       + `<text x="${padL - 8}" y="${(yFor(t) + 3.5).toFixed(1)}" font-size="10" fill="var(--text-muted)" text-anchor="end">${t}</text>`;
   }).join('');
 
-  // X-axis date labels at spaced intervals.
   const labelEvery = Math.max(1, Math.ceil(days.length / 8));
   const xLabels = dayData.map((x, i) => {
     if (i % labelEvery !== 0 && i !== days.length - 1) return '';
     return `<text x="${xCenter(i).toFixed(1)}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(x.label)}</text>`;
   }).join('');
 
-  // Two lines: Before (blue) and After (orange), with a small dot at each
-  // data point so single-day values remain visible even on flat runs.
   const lineFor = (key, color) => {
     const points = dayData.map((x, i) => `${xCenter(i).toFixed(1)},${yFor(x[key]).toFixed(1)}`).join(' ');
     const dots = dayData.map((x, i) => `<circle cx="${xCenter(i).toFixed(1)}" cy="${yFor(x[key]).toFixed(1)}" r="3" fill="${color}" />`).join('');
@@ -784,7 +730,6 @@ function renderBreakdownChart(filtered) {
     return;
   }
 
-  // Wide viewBox so it scales ~1:1 at full-width display (matches trend chart).
   const width = 1120;
   const rowHeight = 34;
   const padTop = 8;
@@ -801,7 +746,6 @@ function renderBreakdownChart(filtered) {
   const xScale = (v) => plotX0 + (v / niceMax) * plotW;
   const truncate = (s) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
 
-  // X-axis dashed gridlines + tick labels.
   const xGrid = ticks.map((t) => {
     const x = xScale(t).toFixed(1);
     return `<line x1="${x}" y1="${padTop}" x2="${x}" y2="${plotBottom}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
@@ -835,7 +779,6 @@ function renderBreakdownChart(filtered) {
     </div>
   `;
 
-  // Row hover highlight + tooltip.
   const svg = container.querySelector('svg');
   const tooltip = container.querySelector('.trend-tooltip');
   const tracks = Array.from(svg.querySelectorAll('.bd-track'));

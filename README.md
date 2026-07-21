@@ -19,8 +19,9 @@ No Node.js, npm, or `node_modules` — this runs on Deno directly.
 ### 1. Google Sheets (OAuth, your own Google login)
 
 This is a one-time step so the app is allowed to read/write a Google Sheet on
-your behalf. No 2-Step Verification/App Password is needed for this — that
-was only required by the old email-sending feature, which no longer exists.
+your behalf. No 2-Step Verification/App Password is needed — the coordinator
+notification email is sent separately by a Google Apps Script (see "Email
+notification" below), not by this app.
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/), create a project (or reuse one).
 2. Enable the **Google Sheets API** and the **Google Drive API** for that project (APIs & Services → Library) — Drive is used to store the bill/reference image uploads.
@@ -62,6 +63,44 @@ reserved for when the notification mechanism is chosen.
 ## Auto-read (OCR) on the bill screenshot
 
 The dashboard uses [Tesseract.js](https://github.com/naptha/tesseract.js) running entirely in the browser (loaded from a CDN) to read text off the uploaded bill screenshot and guess the Order ID/Sample ID/Patient Name/Test Methodology/Test Name fields via simple labeled-line matching (e.g. a line reading "Sample ID: 12345"). It requires internet access to load the OCR library the first time, and its accuracy depends heavily on image quality and how closely the bill's wording matches the expected labels — it will occasionally miss fields or misread text, which is why the fields stay editable and nothing is auto-submitted.
+
+## Email notification (Google Apps Script)
+
+The coordinator is emailed the details of each failure — patient name,
+PIN/Sample ID, Order ID, test name, client/hospital, failure stage & type,
+reason, notes, who reported it, and when — plus links to the uploaded bill and
+reference images.
+
+This is handled **outside the app** by a Google Apps Script bound to the
+failure-log spreadsheet: [`apps-script/FailureNotifier.gs`](apps-script/FailureNotifier.gs).
+It runs on a time-driven trigger and emails rows added since its last run.
+
+Why a time trigger and not `onEdit`/`onChange`: the app appends rows via the
+Sheets API, and API writes do **not** fire edit/change triggers — only edits by
+a human or by Apps Script itself do. So the script polls for new rows instead.
+
+The mail goes **to** `COORDINATOR_EMAIL`, **cc** `CC_EMAIL` (both set at the top
+of the script). When the initial mail is sent, the script stamps the send time
+into a **`MailSent`** column on that row (shown in the dashboard tables), so you
+can see at a glance which failures were notified.
+
+**72-hour reminder:** on each run the script also checks every row whose mail was
+sent but whose recollection is still not `Resolved`. If more than
+`REMINDER_HOURS` (default 72) have passed since the failure was reported, it
+sends a reminder email and records the time in a `ReminderSent` tracking column
+so the reminder fires only once. Marking the row `Resolved` in the dashboard
+before the 72 hours are up cancels the reminder.
+
+Setup (one time):
+
+1. From the **"Culture Failure Monitor - Failure Log"** spreadsheet, open
+   **Extensions → Apps Script** (this binds the script to that sheet).
+2. Paste in the contents of `apps-script/FailureNotifier.gs`.
+3. Set the recipient — either the `COORDINATOR_EMAIL` constant at the top, or a
+   Script Property named `COORDINATOR_EMAIL` (the property wins if both are set).
+4. Run `installTrigger()` once and authorize when prompted. This creates the
+   5-minute trigger **and** baselines the current rows, so you are not emailed
+   the existing backlog — only failures reported from then on.
 
 ## WhatsApp notification (on hold)
 
