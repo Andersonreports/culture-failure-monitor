@@ -43,26 +43,27 @@
         </button>
       </div>
       <div class="stat-row">
-        <div class="stat-card tone-accent">
+        <button type="button" class="stat-card tone-accent clickable" data-combined-filter="all">
           <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>
-          <span class="stat-value" data-combined-stat="total">0</span>
-          <span class="stat-label">Total</span>
-        </div>
-        <div class="stat-card tone-self">
-          <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5"/></svg></span>
-          <span class="stat-value" data-combined-stat="before">0</span>
-          <span class="stat-label">Before Processing</span>
-        </div>
-        <div class="stat-card tone-fish">
-          <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5"/></svg></span>
-          <span class="stat-value" data-combined-stat="after">0</span>
-          <span class="stat-label">After Processing</span>
-        </div>
-        <div class="stat-card tone-good">
-          <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-          <span class="stat-value" data-combined-stat="today">0</span>
-          <span class="stat-label">Today</span>
-        </div>
+          <span class="stat-text">
+            <span class="stat-value" data-combined-stat="total">0</span>
+            <span class="stat-label">Total</span>
+          </span>
+        </button>
+        <button type="button" class="stat-card tone-warning clickable" data-combined-filter="pending">
+          <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <span class="stat-text">
+            <span class="stat-value" data-combined-stat="pending">0</span>
+            <span class="stat-label">Pending Recollection</span>
+          </span>
+        </button>
+        <button type="button" class="stat-card tone-good clickable" data-combined-filter="resolved">
+          <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg></span>
+          <span class="stat-text">
+            <span class="stat-value" data-combined-stat="resolved">0</span>
+            <span class="stat-label">Resolved</span>
+          </span>
+        </button>
       </div>
       <div class="table-wrap">
         <table class="failures-table" id="combinedTable">
@@ -128,18 +129,24 @@
       <div class="stat-row manager-stat-row">
         <div class="stat-card tone-accent">
           <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>
-          <span class="stat-value" data-mgr-stat="total">0</span>
-          <span class="stat-label">Total</span>
+          <span class="stat-text">
+            <span class="stat-value" data-mgr-stat="total">0</span>
+            <span class="stat-label">Total</span>
+          </span>
         </div>
         <div class="stat-card tone-warning">
           <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-          <span class="stat-value" data-mgr-stat="pending">0</span>
-          <span class="stat-label">Pending Recollection</span>
+          <span class="stat-text">
+            <span class="stat-value" data-mgr-stat="pending">0</span>
+            <span class="stat-label">Pending Recollection</span>
+          </span>
         </div>
         <div class="stat-card tone-good">
           <span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg></span>
-          <span class="stat-value" data-mgr-stat="resolved">0</span>
-          <span class="stat-label">Resolved</span>
+          <span class="stat-text">
+            <span class="stat-value" data-mgr-stat="resolved">0</span>
+            <span class="stat-label">Resolved</span>
+          </span>
         </div>
       </div>
 

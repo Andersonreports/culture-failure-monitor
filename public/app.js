@@ -23,6 +23,7 @@ const state = {
   role: localStorage.getItem('cfm.role') || 'wetlab',
   failures: { before: [], after: [] },
   filters: { from: '', to: '', category: 'all', status: 'all', search: '' },
+  combinedFilter: 'all',
 };
 
 const el = (id) => document.getElementById(id);
@@ -108,16 +109,6 @@ async function checkGoogleStatus() {
   } catch (err) {
     statusEl.querySelector('.sheet-status-text').textContent = 'Could not check Google Sheet status.';
   }
-}
-
-function isSameLocalDay(isoString, reference) {
-  if (!isoString) return false;
-  const d = new Date(isoString);
-  return (
-    d.getFullYear() === reference.getFullYear() &&
-    d.getMonth() === reference.getMonth() &&
-    d.getDate() === reference.getDate()
-  );
 }
 
 function formatTimestamp(isoString) {
@@ -238,28 +229,43 @@ function buildFailureRow(f, editableRecollection) {
   return tr;
 }
 
+function isResolved(f) {
+  return f.RecollectionStatus === 'Resolved';
+}
+
 function renderCombined() {
   const all = getAllFailuresFlat();
-  const now = new Date();
   animateStatValue(document.querySelector('[data-combined-stat="total"]'), all.length);
-  animateStatValue(document.querySelector('[data-combined-stat="before"]'), all.filter((f) => f._category === 'before').length);
-  animateStatValue(document.querySelector('[data-combined-stat="after"]'), all.filter((f) => f._category === 'after').length);
-  animateStatValue(document.querySelector('[data-combined-stat="today"]'), all.filter((f) => isSameLocalDay(f.Timestamp, now)).length);
+  animateStatValue(document.querySelector('[data-combined-stat="pending"]'), all.filter((f) => !isResolved(f)).length);
+  animateStatValue(document.querySelector('[data-combined-stat="resolved"]'), all.filter(isResolved).length);
+
+  document.querySelectorAll('[data-combined-filter]').forEach((card) => {
+    card.classList.toggle('active', card.dataset.combinedFilter === state.combinedFilter);
+  });
+
+  const filtered = state.combinedFilter === 'pending'
+    ? all.filter((f) => !isResolved(f))
+    : state.combinedFilter === 'resolved'
+      ? all.filter(isResolved)
+      : all;
 
   const tbody = el('combinedTableBody');
   const table = el('combinedTable');
   const emptyState = el('combinedEmptyState');
   tbody.innerHTML = '';
 
-  if (!all.length) {
+  if (!filtered.length) {
     table.classList.add('hidden');
     emptyState.classList.add('visible');
+    emptyState.querySelector('p').textContent = all.length
+      ? `No ${state.combinedFilter} failures.`
+      : 'No failures reported yet.';
     return;
   }
   table.classList.remove('hidden');
   emptyState.classList.remove('visible');
 
-  [...all]
+  [...filtered]
     .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
     .forEach((f) => tbody.appendChild(buildFailureRow(f, true)));
 }
@@ -830,6 +836,13 @@ function renderManagerView() {
 
 document.querySelectorAll('.report-failure-btn').forEach((btn) => {
   btn.addEventListener('click', () => openReportModal());
+});
+document.querySelectorAll('[data-combined-filter]').forEach((card) => {
+  card.addEventListener('click', () => {
+    const filter = card.dataset.combinedFilter;
+    state.combinedFilter = state.combinedFilter === filter ? 'all' : filter;
+    renderCombined();
+  });
 });
 el('reportCategory').addEventListener('change', () => {
   populateFailureTypeSelect(el('reportCategory').value);
