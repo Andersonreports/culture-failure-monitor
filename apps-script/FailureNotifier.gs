@@ -15,6 +15,22 @@ var MAIL_SENT_HEADER = 'MailSent';
 
 var REMINDER_SENT_HEADER = 'ReminderSent';
 
+// Natural-language phrase for each FailureType (must match server/types.ts
+// FAILURE_TYPES exactly). 'Other' has no entry - it falls back to the
+// reporter's own Reason text, since that's the only description we have.
+var FAILURE_PHRASES = {
+  'Onco blocks - low tumor %': 'the tumor percentage in the received block is too low to proceed with testing,',
+  'Blood Sample - Lysed/Hemolysed/Clotted': "sample received is lysed/hemolysed/clotted, couldn't take it for further processing,",
+  'Wrong sample tubes': "sample was received in the wrong collection tubes, couldn't take it for further processing,",
+  'Karyotyping - Metaphase not yielded/contaminated': 'has not yielded any metaphase / the culture appears contaminated,',
+  'NIPS - QC matrix failed': 'the QC matrix has failed,',
+  'Onco - low DNA/RNA concentration': 'the DNA/RNA concentration obtained is too low for testing,',
+  'Onco-sequencing QC failure': 'the sequencing QC has failed,',
+  'Microarray - No fetal genotype After MCC': 'no fetal genotype was detected even after MCC correction,',
+  'Covid - IC failed': 'the internal control (IC) has failed,',
+  'Fish her2 - Non diagnostics sample': 'sample received is non-diagnostic,',
+};
+
 function coordinatorEmail_() {
   var prop = PropertiesService.getScriptProperties().getProperty('COORDINATOR_EMAIL');
   return (prop && prop.trim()) || COORDINATOR_EMAIL.trim();
@@ -106,7 +122,13 @@ function processSheet_(sheet, tabName, to, props) {
     }
   }
 
-  props.setProperty(lastRowKey_(tabName), String(lastRow));
+  // NOTE: `seen` is only ever meant to baseline the pre-existing backlog at
+  // install time (see installTrigger). It must not advance beyond that on
+  // every run - doing so was a bug: a row whose send failed (quota, transient
+  // API error) would have `sheetRow > seen` become permanently false on the
+  // next run, so it could never be retried. Rows are keyed by MailSent being
+  // empty, which is already sufficient and safely idempotent, so `seen` stays
+  // fixed at its installed baseline forever.
 }
 
 function ensureColumn_(sheet, header) {
@@ -134,6 +156,14 @@ function formatWhen_(d) {
   return Utilities.formatDate(d, 'Asia/Kolkata', 'dd MMM yyyy, hh:mm a');
 }
 
+function failurePhrase_(failureType, reason) {
+  var phrase = FAILURE_PHRASES[failureType];
+  if (phrase) return phrase;
+  // 'Other' (or any future type without a curated phrase) - only thing we
+  // have to describe it is the reporter's own free-text Reason.
+  return (reason || 'a processing failure was reported') + ',';
+}
+
 function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
   var patient = cell_(row, col, 'PatientName');
   var sampleId = cell_(row, col, 'SampleID');
@@ -152,43 +182,46 @@ function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
     ? Utilities.formatDate(new Date(timestamp), 'Asia/Kolkata', 'dd MMM yyyy, hh:mm a')
     : '';
 
+  var patientLabel = patient || sampleId || orderId || 'Unknown sample';
+  var sampleLabel = testName || stageLabel;
+  var phrase = failurePhrase_(failureType, reason);
+
+  // e.g. "Kindly be informed the NIPS sample of Ms.Rajeshwari from Lakshmi
+  // Hospital the QC matrix has failed, kindly arrange for Repeat sample."
+  var sentence = 'Kindly be informed the ' + sampleLabel + ' sample of ' + patientLabel +
+    (hospital ? ' from ' + hospital : '') + ' ' + phrase + ' kindly arrange for Repeat sample.';
+
+  var reminderNote = isReminder
+    ? 'Reminder: this was reported over ' + REMINDER_HOURS + ' hours ago and is still pending recollection.'
+    : '';
+
   var prefix = isReminder ? '[Culture Failure - REMINDER] ' : '[Culture Failure] ';
-  var subject = prefix + failureType + ' - ' + (patient || sampleId || orderId || 'Unknown sample');
+  var subject = prefix + 'Repeat sample needed - ' + patientLabel + (hospital ? ' (' + hospital + ')' : '');
 
-  var heading = isReminder ? 'Culture failure still pending recollection' : 'Culture failure reported';
-  var intro = isReminder
-    ? 'This failure was reported over ' + REMINDER_HOURS + ' hours ago and its recollection is still not marked Resolved.'
-    : 'A new failure was uploaded by the wet-lab team.';
-
-  var rows = [
-    ['Patient name', patient],
-    ['PIN / Sample ID', sampleId],
+  var detailLines = [
     ['Order ID', orderId],
-    ['Test name', testName],
-    ['Client / Hospital', hospital],
-    ['Failure stage', stageLabel],
-    ['Failure type', failureType],
-    ['Reason', reason],
-    ['Notes', notes],
+    ['Sample ID', sampleId],
     ['Reported by', reportedBy],
     ['Reported on', when],
-  ];
+    ['Notes', notes],
+  ].filter(function (r) { return r[1]; });
 
-  var textBody = intro + '\n\n' + rows.map(function (r) { return r[0] + ': ' + (r[1] || '-'); }).join('\n');
+  var textBody = (reminderNote ? reminderNote + '\n\n' : '') + sentence +
+    '\n\n' + detailLines.map(function (r) { return r[0] + ': ' + r[1]; }).join('\n');
   if (billLink) textBody += '\n\nBill / report image: ' + billLink;
   if (refLinks) textBody += '\nReference images: ' + refLinks;
 
-  var htmlRows = rows.map(function (r) {
-    return '<tr><td style="padding:6px 12px;color:#555;white-space:nowrap;vertical-align:top">' +
-      escapeHtml_(r[0]) + '</td><td style="padding:6px 12px;font-weight:600;color:#111">' +
-      escapeHtml_(r[1] || '-') + '</td></tr>';
+  var htmlDetailRows = detailLines.map(function (r) {
+    return '<tr><td style="padding:4px 10px 4px 0;color:#666;white-space:nowrap;vertical-align:top">' +
+      escapeHtml_(r[0]) + '</td><td style="padding:4px 0;color:#111">' +
+      nl2br_(escapeHtml_(r[1])) + '</td></tr>';
   }).join('');
 
   var htmlBody =
-    '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.4">' +
-    '<h2 style="margin:0 0 4px">' + escapeHtml_(heading) + '</h2>' +
-    '<p style="margin:0 0 16px;color:#666">' + escapeHtml_(intro) + '</p>' +
-    '<table style="border-collapse:collapse;background:#f7f7f8;border-radius:8px">' + htmlRows + '</table>' +
+    '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5;font-size:14px">' +
+    (reminderNote ? '<p style="margin:0 0 12px;color:#b8790a;font-weight:600">' + escapeHtml_(reminderNote) + '</p>' : '') +
+    '<p style="margin:0 0 16px">' + escapeHtml_(sentence) + '</p>' +
+    (htmlDetailRows ? '<table style="border-collapse:collapse">' + htmlDetailRows + '</table>' : '') +
     (billLink ? '<p style="margin:16px 0 4px"><a href="' + escapeHtml_(billLink) + '">View bill / report image</a></p>' : '') +
     (refLinks ? '<p style="margin:4px 0"><a href="' + escapeHtml_(refLinks.split(';')[0].trim()) + '">Reference image(s)</a></p>' : '') +
     '</div>';
@@ -196,6 +229,10 @@ function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
   var options = { htmlBody: htmlBody };
   if (CC_EMAIL) options.cc = CC_EMAIL;
   MailApp.sendEmail(to, subject, textBody, options);
+}
+
+function nl2br_(s) {
+  return String(s).replace(/\n/g, '<br>');
 }
 
 function escapeHtml_(s) {
