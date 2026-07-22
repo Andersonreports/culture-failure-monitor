@@ -22,9 +22,13 @@ const FAILURE_TYPES = {
 const state = {
   role: localStorage.getItem('cfm.role') || 'wetlab',
   failures: { before: [], after: [] },
-  filters: { from: '', to: '', category: 'all', status: 'all', search: '' },
+  filters: { from: '', to: '', department: 'all', client: 'all', category: 'all', failureType: 'all', status: 'all', search: '' },
   combinedFilter: 'all',
+  combinedCategory: 'all',
+  headerSearch: '',
 };
+
+const ROLE_LABELS = { wetlab: 'Wet Lab', coordinator: 'Coordinator', manager: 'Manager' };
 
 const el = (id) => document.getElementById(id);
 
@@ -53,7 +57,29 @@ const ICONS = {
   success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg>',
   error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.1"/></svg>',
   spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spin"><path d="M21 12a9 9 0 1 1-9-9"/></svg>',
+  before: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V2"/><path d="M9 2h6"/></svg>',
+  after: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3c0 4 3 4 3 8s-3 4-3 8M18 3c0 4-3 4-3 8s3 4 3 8"/><path d="M8 7h8M8 17h8"/></svg>',
+  person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m5 18 4.5-5 3 3L17 11l2 3"/></svg>',
+  externalLink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
 };
+
+function timeAgo(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return formatTimestamp(isoString);
+}
 
 function svgNode(markup) {
   const template = document.createElement('template');
@@ -83,26 +109,30 @@ async function checkGoogleStatus() {
     const data = await res.json();
     const textEl = statusEl.querySelector('.sheet-status-text');
     textEl.innerHTML = '';
+    statusEl.title = 'Google Sheet connection status';
     if (data.authenticated && data.sheetUrl) {
       statusEl.classList.add('ok');
       statusEl.classList.remove('warn');
-      textEl.append('Google Sheet connected. ');
+      textEl.append('Sheet connected');
       const link = document.createElement('a');
       link.href = data.sheetUrl;
       link.target = '_blank';
       link.rel = 'noopener';
-      link.textContent = 'Open sheet';
+      link.className = 'sheet-status-action';
+      link.appendChild(svgNode(ICONS.externalLink));
+      link.appendChild(document.createTextNode('Open sheet'));
       textEl.appendChild(link);
     } else if (data.authenticated) {
       statusEl.classList.add('ok');
       statusEl.classList.remove('warn');
-      textEl.append('Google Sheet connected.');
+      textEl.append('Sheet connected');
     } else {
       statusEl.classList.add('warn');
       statusEl.classList.remove('ok');
-      textEl.append('Google Sheet not connected. ');
+      textEl.append('Sheet not connected');
       const link = document.createElement('a');
       link.href = '/auth/google';
+      link.className = 'sheet-status-action';
       link.textContent = 'Connect now';
       textEl.appendChild(link);
     }
@@ -124,6 +154,7 @@ function renderRoleUI() {
   el('roleWetLab').classList.toggle('active', state.role === 'wetlab');
   el('roleCoordinator').classList.toggle('active', state.role === 'coordinator');
   el('roleManager').classList.toggle('active', state.role === 'manager');
+  el('userRoleName').textContent = ROLE_LABELS[state.role] || 'Wet Lab';
   document.querySelectorAll('.report-failure-btn').forEach((btn) => {
     btn.hidden = state.role !== 'wetlab';
   });
@@ -233,41 +264,303 @@ function isResolved(f) {
   return f.RecollectionStatus === 'Resolved';
 }
 
+function driveImageSrc(link) {
+  if (!link) return '';
+  const match = link.match(/\/file\/d\/([^/]+)/);
+  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+  return link;
+}
+
+function firstImageLink(f) {
+  if (f.BillImageLink) return f.BillImageLink;
+  const ref = (f.ReferenceImageLinks || '').split(';').map((s) => s.trim()).filter(Boolean)[0];
+  return ref || '';
+}
+
+function buildFailureCard(f) {
+  const status = isResolved(f) ? 'Resolved' : 'Pending';
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = `failure-card tone-${status.toLowerCase()} cat-${f._category === 'before' ? 'self' : 'fish'}`;
+
+  const icon = document.createElement('span');
+  icon.className = 'failure-card-icon';
+  icon.appendChild(svgNode(ICONS[f._category === 'before' ? 'before' : 'after']));
+  card.appendChild(icon);
+
+  const body = document.createElement('span');
+  body.className = 'failure-card-body';
+
+  const title = document.createElement('span');
+  title.className = 'failure-card-title';
+  title.textContent = `${f.PatientName || 'Unknown patient'} — ${f.TestName || f.FailureType || `Sample ${f.SampleID || f.OrderID || ''}`}`;
+  body.appendChild(title);
+
+  const subtitle = document.createElement('span');
+  subtitle.className = 'failure-card-subtitle';
+  subtitle.textContent = `${f.HospitalName || 'Unknown client'} · ${f.FailureType || f.Reason || '—'}`;
+  body.appendChild(subtitle);
+
+  const meta = document.createElement('span');
+  meta.className = 'failure-card-meta';
+  const reporterSpan = document.createElement('span');
+  reporterSpan.appendChild(svgNode(ICONS.person));
+  reporterSpan.appendChild(document.createTextNode(f.ReportedBy || 'Unknown'));
+  meta.appendChild(reporterSpan);
+  const timeSpan = document.createElement('span');
+  timeSpan.appendChild(svgNode(ICONS.clock));
+  timeSpan.appendChild(document.createTextNode(timeAgo(f.Timestamp)));
+  meta.appendChild(timeSpan);
+  body.appendChild(meta);
+  card.appendChild(body);
+
+  const side = document.createElement('span');
+  side.className = 'failure-card-side';
+  const pill = document.createElement('span');
+  pill.className = `recollection-pill tone-${status.toLowerCase()}`;
+  pill.textContent = status;
+  side.appendChild(pill);
+  const chevron = document.createElement('span');
+  chevron.className = 'chevron-btn';
+  chevron.appendChild(svgNode(ICONS.chevron));
+  side.appendChild(chevron);
+  card.appendChild(side);
+
+  card.addEventListener('click', () => openDetailModal(f));
+  return card;
+}
+
+function renderLatestFailure(all) {
+  const container = el('latestFailureCard');
+  container.innerHTML = '';
+  if (!all.length) {
+    const empty = document.createElement('div');
+    empty.className = 'latest-empty';
+    empty.appendChild(svgNode(ICONS.photo));
+    const p = document.createElement('p');
+    p.textContent = 'No failures reported yet.';
+    empty.appendChild(p);
+    container.appendChild(empty);
+    return;
+  }
+  const latest = [...all].sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))[0];
+  const imgLink = firstImageLink(latest);
+
+  const frame = document.createElement('div');
+  frame.className = 'latest-image-frame';
+  if (imgLink) {
+    const img = document.createElement('img');
+    img.src = driveImageSrc(imgLink);
+    img.alt = `Bill/reference image for sample ${latest.SampleID || latest.OrderID || ''}`;
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => {
+      frame.classList.add('latest-empty');
+      img.remove();
+      frame.prepend(svgNode(ICONS.photo));
+    }, { once: true });
+    frame.appendChild(img);
+  } else {
+    frame.classList.add('latest-empty');
+    frame.appendChild(svgNode(ICONS.photo));
+  }
+  const badge = document.createElement('span');
+  badge.className = 'latest-live-badge';
+  badge.textContent = latest._category === 'before' ? 'Before Processing' : 'After Processing';
+  frame.appendChild(badge);
+  container.appendChild(frame);
+
+  const caption = document.createElement('div');
+  caption.className = 'latest-caption';
+  const captionTitle = document.createElement('div');
+  captionTitle.className = 'latest-caption-title';
+  captionTitle.textContent = latest.PatientName || latest.SampleID || 'Unnamed sample';
+  caption.appendChild(captionTitle);
+  const captionMeta = document.createElement('div');
+  captionMeta.className = 'latest-caption-meta';
+  captionMeta.textContent = `${latest.TestName || latest.FailureType || 'Culture failure'} · ${timeAgo(latest.Timestamp)}`;
+  caption.appendChild(captionMeta);
+
+  const links = document.createElement('div');
+  links.className = 'latest-caption-links';
+  const viewLink = document.createElement('a');
+  viewLink.className = 'link';
+  viewLink.href = '#';
+  viewLink.textContent = 'View details';
+  viewLink.addEventListener('click', (e) => { e.preventDefault(); openDetailModal(latest); });
+  links.appendChild(viewLink);
+  if (imgLink) {
+    const openLink = document.createElement('a');
+    openLink.className = 'link';
+    openLink.href = imgLink;
+    openLink.target = '_blank';
+    openLink.rel = 'noopener';
+    openLink.textContent = 'Open image';
+    links.appendChild(openLink);
+  }
+  caption.appendChild(links);
+  container.appendChild(caption);
+}
+
+function matchesCombinedFilters(f) {
+  if (state.combinedCategory !== 'all' && f._category !== state.combinedCategory) return false;
+  if (state.headerSearch) {
+    const haystack = [
+      f.Reason, f.FailureType, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
+    ].join(' ').toLowerCase();
+    if (!haystack.includes(state.headerSearch.toLowerCase())) return false;
+  }
+  return true;
+}
+
 function renderCombined() {
   const all = getAllFailuresFlat();
+  const pendingCount = all.filter((f) => !isResolved(f)).length;
+  const resolvedCount = all.filter(isResolved).length;
   animateStatValue(document.querySelector('[data-combined-stat="total"]'), all.length);
-  animateStatValue(document.querySelector('[data-combined-stat="pending"]'), all.filter((f) => !isResolved(f)).length);
-  animateStatValue(document.querySelector('[data-combined-stat="resolved"]'), all.filter(isResolved).length);
+  animateStatValue(document.querySelector('[data-combined-stat="pending"]'), pendingCount);
+  animateStatValue(document.querySelector('[data-combined-stat="resolved"]'), resolvedCount);
+
+  const pendingAnnex = document.querySelector('[data-combined-annex="pending"]');
+  pendingAnnex.hidden = pendingCount === 0;
+  const progressBar = document.querySelector('[data-combined-progress="resolved"]');
+  progressBar.style.width = all.length ? `${Math.round((resolvedCount / all.length) * 100)}%` : '0%';
 
   document.querySelectorAll('[data-combined-filter]').forEach((card) => {
     card.classList.toggle('active', card.dataset.combinedFilter === state.combinedFilter);
   });
 
-  const filtered = state.combinedFilter === 'pending'
+  let filtered = state.combinedFilter === 'pending'
     ? all.filter((f) => !isResolved(f))
     : state.combinedFilter === 'resolved'
       ? all.filter(isResolved)
       : all;
+  filtered = filtered.filter(matchesCombinedFilters);
 
-  const tbody = el('combinedTableBody');
-  const table = el('combinedTable');
+  const list = el('combinedCardList');
   const emptyState = el('combinedEmptyState');
-  tbody.innerHTML = '';
+  list.innerHTML = '';
 
   if (!filtered.length) {
-    table.classList.add('hidden');
+    list.hidden = true;
     emptyState.classList.add('visible');
     emptyState.querySelector('p').textContent = all.length
-      ? `No ${state.combinedFilter} failures.`
+      ? 'No failures match the current filters.'
       : 'No failures reported yet.';
-    return;
+  } else {
+    list.hidden = false;
+    emptyState.classList.remove('visible');
+    [...filtered]
+      .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
+      .forEach((f) => list.appendChild(buildFailureCard(f)));
   }
-  table.classList.remove('hidden');
-  emptyState.classList.remove('visible');
 
-  [...filtered]
-    .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
-    .forEach((f) => tbody.appendChild(buildFailureRow(f, true)));
+  renderLatestFailure(all);
+}
+
+function exportCSV(list, filename) {
+  const columns = ['Timestamp', 'Category', 'SampleID', 'OrderID', 'PatientName', 'HospitalName', 'TestName', 'FailureType', 'Reason', 'ReportedBy', 'MailSent', 'RecollectionStatus', 'BillImageLink', 'ReferenceImageLinks'];
+  const escapeCsv = (v) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = list.map((f) => columns.map((c) => escapeCsv(c === 'Category' ? (f._category === 'before' ? 'Before Processing' : 'After Processing') : f[c])).join(','));
+  const csv = [columns.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildDetailField(label, value, full) {
+  const wrap = document.createElement('div');
+  wrap.className = full ? 'detail-field full' : 'detail-field';
+  const l = document.createElement('div');
+  l.className = 'detail-field-label';
+  l.textContent = label;
+  const v = document.createElement('div');
+  v.className = 'detail-field-value';
+  v.textContent = value || '—';
+  wrap.appendChild(l);
+  wrap.appendChild(v);
+  return wrap;
+}
+
+function openDetailModal(f) {
+  el('detailModalTitle').textContent = `${f.TestName || f.FailureType || 'Culture failure'} — ${f.SampleID || f.OrderID || ''}`;
+  const body = el('detailModalBody');
+  body.innerHTML = '';
+
+  const status = isResolved(f) ? 'Resolved' : 'Pending';
+  const recollectionRow = document.createElement('div');
+  recollectionRow.className = 'detail-recollection';
+  const catPill = document.createElement('span');
+  catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
+  catPill.textContent = f._category === 'before' ? 'Before Processing' : 'After Processing';
+  recollectionRow.appendChild(catPill);
+  const pill = document.createElement('button');
+  pill.type = 'button';
+  pill.className = `recollection-pill tone-${status.toLowerCase()}`;
+  pill.textContent = status;
+  pill.addEventListener('click', () => {
+    toggleRecollection(f._category, f.rowNumber, status);
+    closeDetailModal();
+  });
+  recollectionRow.appendChild(pill);
+  body.appendChild(recollectionRow);
+
+  const grid = document.createElement('div');
+  grid.className = 'detail-grid';
+  grid.appendChild(buildDetailField('Timestamp', formatTimestamp(f.Timestamp)));
+  grid.appendChild(buildDetailField('Sample ID', f.SampleID));
+  grid.appendChild(buildDetailField('Order ID', f.OrderID));
+  grid.appendChild(buildDetailField('Patient Name', f.PatientName));
+  grid.appendChild(buildDetailField('Hospital Name', f.HospitalName));
+  grid.appendChild(buildDetailField('Test Name', f.TestName));
+  grid.appendChild(buildDetailField('Failure Type', f.FailureType));
+  grid.appendChild(buildDetailField('Reported By', f.ReportedBy));
+  grid.appendChild(buildDetailField('Mail Sent', f.MailSent));
+  grid.appendChild(buildDetailField('Reason', f.Reason, true));
+  body.appendChild(grid);
+
+  const imageLinks = [];
+  if (f.BillImageLink) imageLinks.push({ href: f.BillImageLink, label: 'Bill' });
+  (f.ReferenceImageLinks || '').split(';').map((s) => s.trim()).filter(Boolean).forEach((href, i) => {
+    imageLinks.push({ href, label: `Ref ${i + 1}` });
+  });
+  if (imageLinks.length) {
+    const imagesLabel = document.createElement('div');
+    imagesLabel.className = 'detail-field-label';
+    imagesLabel.textContent = 'Images';
+    body.appendChild(imagesLabel);
+    const imagesWrap = document.createElement('div');
+    imagesWrap.className = 'detail-images';
+    imageLinks.forEach((l) => {
+      const a = document.createElement('a');
+      a.href = l.href;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.className = 'detail-image-thumb';
+      a.title = l.label;
+      const img = document.createElement('img');
+      img.src = driveImageSrc(l.href);
+      img.alt = l.label;
+      img.referrerPolicy = 'no-referrer';
+      a.appendChild(img);
+      imagesWrap.appendChild(a);
+    });
+    body.appendChild(imagesWrap);
+  }
+
+  el('detailModalOverlay').hidden = false;
+}
+
+function closeDetailModal() {
+  el('detailModalOverlay').hidden = true;
 }
 
 async function fetchFailures() {
@@ -276,6 +569,7 @@ async function fetchFailures() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to load failures');
     state.failures = { before: data.before || [], after: data.after || [] };
+    refreshManagerFilterOptions();
     renderActiveView();
   } catch (err) {
     toast(err.message, 'error');
@@ -530,10 +824,29 @@ function getAllFailuresFlat() {
   return [...before, ...after];
 }
 
+const DEPARTMENT_RULES = [
+  ['NIPS', /nips/i],
+  ['Karyotyping', /karyotyp/i],
+  ['Onco/NGS', /onco|ngs|cancer/i],
+  ['Covid', /covid/i],
+  ['Microarray', /microarray/i],
+  ['FISH', /\bfish\b|her2/i],
+  ['PCR/Molecular', /pcr|hcv|flu/i],
+];
+
+function deriveDepartment(f) {
+  const text = `${f.TestName || ''} ${f.FailureType || ''}`;
+  const hit = DEPARTMENT_RULES.find(([, re]) => re.test(text));
+  return hit ? hit[0] : 'Other';
+}
+
 function matchesFilters(f) {
-  const { from, to, category, status, search } = state.filters;
+  const { from, to, category, status, search, department, client, failureType } = state.filters;
   if (category !== 'all' && f._category !== category) return false;
   if (status !== 'all' && (f.RecollectionStatus || 'Pending') !== status) return false;
+  if (department && department !== 'all' && deriveDepartment(f) !== department) return false;
+  if (client && client !== 'all' && (f.HospitalName || '') !== client) return false;
+  if (failureType && failureType !== 'all' && (f.FailureType || '') !== failureType) return false;
   if (from || to) {
     const day = f.Timestamp ? f.Timestamp.slice(0, 10) : '';
     if (from && day < from) return false;
@@ -556,10 +869,35 @@ function readFiltersFromUI() {
   state.filters = {
     from: el('filterFrom').value,
     to: el('filterTo').value,
+    department: el('filterDepartment').value,
+    client: el('filterClient').value,
     category: el('filterCategory').value,
+    failureType: el('filterFailureType').value,
     status: el('filterStatus').value,
     search: el('filterSearch').value.trim(),
   };
+}
+
+function populateSelectOptions(select, values) {
+  const previous = select.value;
+  select.innerHTML = '<option value="all">All</option>';
+  values.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
+  select.value = values.includes(previous) ? previous : 'all';
+}
+
+function refreshManagerFilterOptions() {
+  const all = getAllFailuresFlat();
+  const departments = [...new Set(all.map(deriveDepartment))].sort();
+  const clients = [...new Set(all.map((f) => f.HospitalName).filter(Boolean))].sort();
+  const failureTypes = [...new Set(all.map((f) => f.FailureType).filter(Boolean))].sort();
+  populateSelectOptions(el('filterDepartment'), departments);
+  populateSelectOptions(el('filterClient'), clients);
+  populateSelectOptions(el('filterFailureType'), failureTypes);
 }
 
 function renderManagerTable(filtered) {
@@ -581,19 +919,6 @@ function renderManagerTable(filtered) {
     .forEach((f) => tbody.appendChild(buildFailureRow(f, false)));
 }
 
-function buildDateRange(fromStr, toStr) {
-  const to = toStr ? new Date(`${toStr}T00:00:00`) : new Date();
-  const from = fromStr ? new Date(`${fromStr}T00:00:00`) : new Date(to.getTime() - 29 * 86400000);
-  const days = [];
-  const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
-  while (cursor <= end && days.length < 366) {
-    days.push(new Date(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
-}
-
 function niceTicks(maxVal) {
   const max = Math.max(1, maxVal);
   const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -606,116 +931,6 @@ function niceTicks(maxVal) {
   const ticks = [];
   for (let v = 0; v <= niceMax + 1e-9; v += step) ticks.push(Math.round(v));
   return { niceMax, ticks };
-}
-
-function renderTrendChart(filtered) {
-  const container = el('trendChart');
-  const days = buildDateRange(state.filters.from, state.filters.to);
-  const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-  const beforeCounts = new Map(days.map((d) => [dayKey(d), 0]));
-  const afterCounts = new Map(days.map((d) => [dayKey(d), 0]));
-  filtered.forEach((f) => {
-    if (!f.Timestamp) return;
-    const key = f.Timestamp.slice(0, 10);
-    const map = f._category === 'before' ? beforeCounts : afterCounts;
-    if (map.has(key)) map.set(key, map.get(key) + 1);
-  });
-
-  const width = 1120;
-  const height = 320;
-  const padL = 40;
-  const padR = 20;
-  const padT = 18;
-  const padB = 34;
-  const plotW = width - padL - padR;
-  const plotH = height - padT - padB;
-
-  const dayData = days.map((d) => {
-    const before = beforeCounts.get(dayKey(d));
-    const after = afterCounts.get(dayKey(d));
-    return {
-      date: d,
-      label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      before,
-      after,
-      total: before + after,
-    };
-  });
-  const { niceMax, ticks } = niceTicks(Math.max(1, ...dayData.map((x) => Math.max(x.before, x.after))));
-
-  const slotW = plotW / days.length;
-  const xCenter = (i) => padL + (i + 0.5) * slotW;
-  const yFor = (v) => padT + plotH - (v / niceMax) * plotH;
-
-  const yGrid = ticks.map((t) => {
-    const y = yFor(t).toFixed(1);
-    return `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
-      + `<text x="${padL - 8}" y="${(yFor(t) + 3.5).toFixed(1)}" font-size="10" fill="var(--text-muted)" text-anchor="end">${t}</text>`;
-  }).join('');
-
-  const labelEvery = Math.max(1, Math.ceil(days.length / 8));
-  const xLabels = dayData.map((x, i) => {
-    if (i % labelEvery !== 0 && i !== days.length - 1) return '';
-    return `<text x="${xCenter(i).toFixed(1)}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${escapeHtml(x.label)}</text>`;
-  }).join('');
-
-  const lineFor = (key, color) => {
-    const points = dayData.map((x, i) => `${xCenter(i).toFixed(1)},${yFor(x[key]).toFixed(1)}`).join(' ');
-    const dots = dayData.map((x, i) => `<circle cx="${xCenter(i).toFixed(1)}" cy="${yFor(x[key]).toFixed(1)}" r="3" fill="${color}" />`).join('');
-    return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />${dots}`;
-  };
-  const lines = lineFor('before', 'var(--cat-self)') + lineFor('after', 'var(--cat-fish)');
-
-  container.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failures over time (before vs. after processing)" preserveAspectRatio="xMidYMid meet">
-      ${yGrid}
-      <rect class="bar-hover" x="0" y="${padT}" width="0" height="${plotH}" rx="4" fill="var(--accent-wash)" style="display:none" />
-      ${lines}
-      ${xLabels}
-    </svg>
-    <div class="trend-tooltip" hidden></div>
-    <div class="chart-legend">
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-self)"></span>Before Processing</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-fish)"></span>After Processing</span>
-    </div>
-  `;
-
-  const svg = container.querySelector('svg');
-  const tooltip = container.querySelector('.trend-tooltip');
-  const hoverBand = svg.querySelector('.bar-hover');
-
-  const onMove = (e) => {
-    const rect = svg.getBoundingClientRect();
-    if (!rect.width) return;
-    const vbX = ((e.clientX - rect.left) / rect.width) * width;
-    const i = Math.floor((vbX - padL) / slotW);
-    if (i < 0 || i >= dayData.length) { onLeave(); return; }
-    const x = dayData[i];
-
-    hoverBand.setAttribute('x', (xCenter(i) - slotW / 2).toFixed(1));
-    hoverBand.setAttribute('width', slotW.toFixed(1));
-    hoverBand.style.display = '';
-
-    tooltip.innerHTML = `
-      <div class="tt-date">${escapeHtml(x.label)}</div>
-      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-self)"></span>Before Processing<span class="tt-val">${x.before}</span></div>
-      <div class="tt-row"><span class="tt-dot" style="background:var(--cat-fish)"></span>After Processing<span class="tt-val">${x.after}</span></div>
-      <div class="tt-row tt-total">Total<span class="tt-val">${x.total}</span></div>`;
-    tooltip.hidden = false;
-    const pxX = (xCenter(i) / width) * rect.width;
-    const ttW = tooltip.offsetWidth;
-    let left = pxX + 14;
-    if (left + ttW > rect.width) left = pxX - ttW - 14;
-    tooltip.style.left = `${Math.max(4, left)}px`;
-    tooltip.style.top = '14px';
-  };
-  const onLeave = () => {
-    tooltip.hidden = true;
-    hoverBand.style.display = 'none';
-  };
-  svg.addEventListener('mousemove', onMove);
-  svg.addEventListener('mouseleave', onLeave);
 }
 
 function renderBreakdownChart(filtered) {
@@ -852,14 +1067,17 @@ el('roleWetLab').addEventListener('click', () => setRole('wetlab'));
 el('roleCoordinator').addEventListener('click', () => setRole('coordinator'));
 el('roleManager').addEventListener('click', () => setRole('manager'));
 
-['filterFrom', 'filterTo', 'filterCategory', 'filterStatus'].forEach((id) => {
+['filterFrom', 'filterTo', 'filterDepartment', 'filterClient', 'filterCategory', 'filterFailureType', 'filterStatus'].forEach((id) => {
   el(id).addEventListener('change', () => { readFiltersFromUI(); renderManagerView(); });
 });
 el('filterSearch').addEventListener('input', () => { readFiltersFromUI(); renderManagerView(); });
 el('filterReset').addEventListener('click', () => {
   el('filterFrom').value = '';
   el('filterTo').value = '';
+  el('filterDepartment').value = 'all';
+  el('filterClient').value = 'all';
   el('filterCategory').value = 'all';
+  el('filterFailureType').value = 'all';
   el('filterStatus').value = 'all';
   el('filterSearch').value = '';
   readFiltersFromUI();
@@ -873,6 +1091,40 @@ el('reportBillImage').addEventListener('change', (e) => {
   if (file) runOcrOnBillImage(file);
 });
 el('reportFailureType').addEventListener('change', updateReasonRequiredHint);
+
+el('headerSearch').addEventListener('input', (e) => {
+  state.headerSearch = e.target.value.trim();
+  if (state.role !== 'manager') renderCombined();
+});
+el('combinedFilterToggle').addEventListener('click', () => {
+  el('combinedFilterBar').hidden = !el('combinedFilterBar').hidden;
+});
+el('combinedCategoryFilter').addEventListener('change', (e) => {
+  state.combinedCategory = e.target.value;
+  renderCombined();
+});
+el('combinedFilterReset').addEventListener('click', () => {
+  state.combinedCategory = 'all';
+  el('combinedCategoryFilter').value = 'all';
+  el('headerSearch').value = '';
+  state.headerSearch = '';
+  renderCombined();
+});
+el('combinedExportBtn').addEventListener('click', () => {
+  const all = getAllFailuresFlat().filter(matchesCombinedFilters);
+  exportCSV(all, 'culture-failures.csv');
+});
+el('managerExportBtn').addEventListener('click', () => {
+  exportCSV(getFilteredFailures(), 'culture-failures-filtered.csv');
+});
+el('detailModalClose').addEventListener('click', closeDetailModal);
+el('detailModalOverlay').addEventListener('click', (e) => {
+  if (e.target === el('detailModalOverlay')) closeDetailModal();
+});
+
+el('todayDateLabel').textContent = new Date().toLocaleDateString(undefined, {
+  year: 'numeric', month: 'short', day: 'numeric',
+});
 
 renderRoleUI();
 fetchFailures();

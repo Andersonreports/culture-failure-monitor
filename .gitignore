@@ -10,3 +10,6 @@ server/data/*
 *.jpeg
 *.png
 *.csv
+
+# Decorative UI asset, not patient data.
+!public/background.jpg
