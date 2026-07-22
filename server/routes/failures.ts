@@ -121,6 +121,7 @@ router.post(
         PatientName: body.patientName || "",
         HospitalName: body.hospitalName || "",
         TestName: body.testName || "",
+        BillDate: body.billDate || "",
         Reason: body.reason || "",
         Notes: body.notes || "",
         ReportedBy: body.reportedBy || "",

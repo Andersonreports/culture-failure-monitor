@@ -29,6 +29,11 @@ const state = {
 };
 
 const ROLE_LABELS = { wetlab: 'Wet Lab', coordinator: 'Coordinator', manager: 'Manager' };
+const ROLE_SUBTITLES = {
+  wetlab: 'Report culture failures as they happen — recollection status is updated by the Coordinator.',
+  coordinator: 'Chase repeat samples with the client and mark recollections resolved once arranged.',
+  manager: 'Real-time status for before/after-processing samples',
+};
 
 const el = (id) => document.getElementById(id);
 
@@ -155,6 +160,7 @@ function renderRoleUI() {
   el('roleCoordinator').classList.toggle('active', state.role === 'coordinator');
   el('roleManager').classList.toggle('active', state.role === 'manager');
   el('userRoleName').textContent = ROLE_LABELS[state.role] || 'Wet Lab';
+  el('overviewSubtitle').textContent = ROLE_SUBTITLES[state.role] || ROLE_SUBTITLES.wetlab;
   document.querySelectorAll('.report-failure-btn').forEach((btn) => {
     btn.hidden = state.role !== 'wetlab';
   });
@@ -279,9 +285,10 @@ function firstImageLink(f) {
 
 function buildFailureCard(f) {
   const status = isResolved(f) ? 'Resolved' : 'Pending';
-  const card = document.createElement('button');
-  card.type = 'button';
+  const card = document.createElement('div');
   card.className = `failure-card tone-${status.toLowerCase()} cat-${f._category === 'before' ? 'self' : 'fish'}`;
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
 
   const icon = document.createElement('span');
   icon.className = 'failure-card-icon';
@@ -293,12 +300,12 @@ function buildFailureCard(f) {
 
   const title = document.createElement('span');
   title.className = 'failure-card-title';
-  title.textContent = `${f.PatientName || 'Unknown patient'} — ${f.TestName || f.FailureType || `Sample ${f.SampleID || f.OrderID || ''}`}`;
+  title.textContent = `${f.PatientName || 'Unknown patient'} — ${f.FailureType || f.Reason || `Sample ${f.SampleID || f.OrderID || ''}`}`;
   body.appendChild(title);
 
   const subtitle = document.createElement('span');
   subtitle.className = 'failure-card-subtitle';
-  subtitle.textContent = `${f.HospitalName || 'Unknown client'} · ${f.FailureType || f.Reason || '—'}`;
+  subtitle.textContent = `${f.HospitalName || 'Unknown client'} · ${f.TestName || '—'}`;
   body.appendChild(subtitle);
 
   const meta = document.createElement('span');
@@ -316,9 +323,18 @@ function buildFailureCard(f) {
 
   const side = document.createElement('span');
   side.className = 'failure-card-side';
-  const pill = document.createElement('span');
+  const canEditRecollection = state.role === 'coordinator';
+  const pill = document.createElement(canEditRecollection ? 'button' : 'span');
+  if (canEditRecollection) pill.type = 'button';
   pill.className = `recollection-pill tone-${status.toLowerCase()}`;
   pill.textContent = status;
+  if (canEditRecollection) {
+    pill.title = status === 'Resolved' ? 'Mark as Pending' : 'Mark as Resolved';
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleRecollection(f._category, f.rowNumber, status);
+    });
+  }
   side.appendChild(pill);
   const chevron = document.createElement('span');
   chevron.className = 'chevron-btn';
@@ -327,6 +343,12 @@ function buildFailureCard(f) {
   card.appendChild(side);
 
   card.addEventListener('click', () => openDetailModal(f));
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openDetailModal(f);
+    }
+  });
   return card;
 }
 
@@ -412,7 +434,20 @@ function matchesCombinedFilters(f) {
   return true;
 }
 
+function sortFailuresForRole(a, b) {
+  if (state.role === 'coordinator') {
+    const aResolved = isResolved(a) ? 1 : 0;
+    const bResolved = isResolved(b) ? 1 : 0;
+    if (aResolved !== bResolved) return aResolved - bResolved;
+  }
+  return (b.Timestamp || '').localeCompare(a.Timestamp || '');
+}
+
 function renderCombined() {
+  const showLatestPanel = state.role === 'coordinator';
+  el('overviewGrid').classList.toggle('single-column', !showLatestPanel);
+  el('latestPanel').hidden = !showLatestPanel;
+
   const all = getAllFailuresFlat();
   const pendingCount = all.filter((f) => !isResolved(f)).length;
   const resolvedCount = all.filter(isResolved).length;
@@ -450,15 +485,15 @@ function renderCombined() {
     list.hidden = false;
     emptyState.classList.remove('visible');
     [...filtered]
-      .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
+      .sort(sortFailuresForRole)
       .forEach((f) => list.appendChild(buildFailureCard(f)));
   }
 
-  renderLatestFailure(all);
+  if (showLatestPanel) renderLatestFailure(all);
 }
 
 function exportCSV(list, filename) {
-  const columns = ['Timestamp', 'Category', 'SampleID', 'OrderID', 'PatientName', 'HospitalName', 'TestName', 'FailureType', 'Reason', 'ReportedBy', 'MailSent', 'RecollectionStatus', 'BillImageLink', 'ReferenceImageLinks'];
+  const columns = ['Timestamp', 'Category', 'SampleID', 'OrderID', 'PatientName', 'HospitalName', 'TestName', 'BillDate', 'FailureType', 'Reason', 'ReportedBy', 'MailSent', 'RecollectionStatus', 'BillImageLink', 'ReferenceImageLinks'];
   const escapeCsv = (v) => {
     const s = v == null ? '' : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -495,6 +530,11 @@ function openDetailModal(f) {
   const body = el('detailModalBody');
   body.innerHTML = '';
 
+  const patientHeading = document.createElement('div');
+  patientHeading.className = 'detail-patient-name';
+  patientHeading.textContent = f.PatientName || 'Unknown patient';
+  body.appendChild(patientHeading);
+
   const status = isResolved(f) ? 'Resolved' : 'Pending';
   const recollectionRow = document.createElement('div');
   recollectionRow.className = 'detail-recollection';
@@ -502,14 +542,20 @@ function openDetailModal(f) {
   catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
   catPill.textContent = f._category === 'before' ? 'Before Processing' : 'After Processing';
   recollectionRow.appendChild(catPill);
+  const canEditRecollection = state.role === 'coordinator';
   const pill = document.createElement('button');
   pill.type = 'button';
   pill.className = `recollection-pill tone-${status.toLowerCase()}`;
   pill.textContent = status;
-  pill.addEventListener('click', () => {
-    toggleRecollection(f._category, f.rowNumber, status);
-    closeDetailModal();
-  });
+  if (canEditRecollection) {
+    pill.addEventListener('click', () => {
+      toggleRecollection(f._category, f.rowNumber, status);
+      closeDetailModal();
+    });
+  } else {
+    pill.disabled = true;
+    pill.title = 'Only the Coordinator can update recollection status';
+  }
   recollectionRow.appendChild(pill);
   body.appendChild(recollectionRow);
 
@@ -518,9 +564,9 @@ function openDetailModal(f) {
   grid.appendChild(buildDetailField('Timestamp', formatTimestamp(f.Timestamp)));
   grid.appendChild(buildDetailField('Sample ID', f.SampleID));
   grid.appendChild(buildDetailField('Order ID', f.OrderID));
-  grid.appendChild(buildDetailField('Patient Name', f.PatientName));
   grid.appendChild(buildDetailField('Hospital Name', f.HospitalName));
   grid.appendChild(buildDetailField('Test Name', f.TestName));
+  grid.appendChild(buildDetailField('Bill Date', f.BillDate));
   grid.appendChild(buildDetailField('Failure Type', f.FailureType));
   grid.appendChild(buildDetailField('Reported By', f.ReportedBy));
   grid.appendChild(buildDetailField('Mail Sent', f.MailSent));
@@ -578,7 +624,7 @@ async function fetchFailures() {
 
 function resetReportForm() {
   ['reportOrderId', 'reportSampleId', 'reportPatientName', 'reportHospitalName',
-    'reportTestName', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
+    'reportTestName', 'reportBillDate', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
     el(id).value = '';
   });
   el('reportCategory').value = '';
@@ -625,6 +671,9 @@ function parseOcrText(text) {
         .trim();
     }
   }
+
+  const visitDate = norm.match(/visit\s*date\s*[:\-]?\s*(\d{1,2}[-/][A-Za-z0-9]{2,9}[-/]\d{2,4})/i);
+  if (visitDate) found.reportBillDate = visitDate[1];
 
   return found;
 }
@@ -750,6 +799,7 @@ async function submitReport() {
     patientName: el('reportPatientName').value.trim(),
     hospitalName: el('reportHospitalName').value.trim(),
     testName: el('reportTestName').value.trim(),
+    billDate: el('reportBillDate').value.trim(),
     failureType: el('reportFailureType').value,
     reason: el('reportReason').value.trim(),
     notes: el('reportNotes').value.trim(),
@@ -1044,7 +1094,6 @@ function renderManagerView() {
   animateStatValue(document.querySelector('[data-mgr-stat="pending"]'), pending);
   animateStatValue(document.querySelector('[data-mgr-stat="resolved"]'), resolved);
 
-  renderTrendChart(filtered);
   renderBreakdownChart(filtered);
   renderManagerTable(filtered);
 }

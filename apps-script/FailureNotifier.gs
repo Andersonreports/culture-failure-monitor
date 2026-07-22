@@ -173,14 +173,9 @@ function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
   var failureType = cell_(row, col, 'FailureType');
   var reason = cell_(row, col, 'Reason');
   var notes = cell_(row, col, 'Notes');
-  var reportedBy = cell_(row, col, 'ReportedBy');
-  var timestamp = cell_(row, col, 'Timestamp');
+  var billDate = cell_(row, col, 'BillDate');
   var billLink = cell_(row, col, 'BillImageLink');
   var refLinks = cell_(row, col, 'ReferenceImageLinks');
-
-  var when = timestamp
-    ? Utilities.formatDate(new Date(timestamp), 'Asia/Kolkata', 'dd MMM yyyy, hh:mm a')
-    : '';
 
   var patientLabel = patient || sampleId || orderId || 'Unknown sample';
   var sampleLabel = testName || stageLabel;
@@ -199,10 +194,12 @@ function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
   var subject = prefix + 'Repeat sample needed - ' + patientLabel + (hospital ? ' (' + hospital + ')' : '');
 
   var detailLines = [
+    ['Patient Name', patient],
+    ['Sample Number', sampleId],
     ['Order ID', orderId],
-    ['Sample ID', sampleId],
-    ['Reported by', reportedBy],
-    ['Reported on', when],
+    ['Test Name', testName],
+    ['Hospital / Client', hospital],
+    ['Bill Date', billDate],
     ['Notes', notes],
   ].filter(function (r) { return r[1]; });
 

@@ -339,6 +339,7 @@ main {
   gap: 1.25rem;
   align-items: start;
 }
+.overview-grid.single-column { grid-template-columns: 1fr; }
 @media (max-width: 1100px) {
   .overview-grid { grid-template-columns: 1fr; }
 }
@@ -387,6 +388,7 @@ main {
   color: inherit;
 }
 .failure-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.failure-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .failure-card.tone-pending { border-left-color: var(--status-critical); }
 .failure-card.tone-resolved { border-left-color: var(--status-good); }
 
@@ -945,6 +947,13 @@ tbody tr:last-child td { border-bottom: none; }
   display: block;
 }
 .detail-image-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-patient-name {
+  font-family: "Fraunces", serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
 .detail-recollection { display: flex; align-items: center; gap: 0.75rem; }
 
 .modal-footer {

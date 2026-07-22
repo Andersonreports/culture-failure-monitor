@@ -60,7 +60,7 @@
       <div class="overview-head">
         <div>
           <h2>Culture Failures</h2>
-          <p class="subtitle">Real-time status for before/after-processing samples</p>
+          <p class="subtitle" id="overviewSubtitle">Real-time status for before/after-processing samples</p>
         </div>
         <div class="overview-head-actions">
           <span class="date-chip">
@@ -93,7 +93,7 @@
         </button>
       </div>
 
-      <div class="overview-grid">
+      <div class="overview-grid" id="overviewGrid">
         <div class="list-section panel">
           <div class="list-head">
             <h3>Recent Failures</h3>
@@ -128,7 +128,7 @@
           </div>
         </div>
 
-        <aside class="latest-panel panel">
+        <aside class="latest-panel panel" id="latestPanel">
           <h3>Latest Failure</h3>
           <div id="latestFailureCard"></div>
         </aside>
@@ -286,7 +286,10 @@
             <label>Patient Name <input type="text" id="reportPatientName" /></label>
             <label>Hospital Name <input type="text" id="reportHospitalName" /></label>
           </div>
-          <label>Test Name <input type="text" id="reportTestName" /></label>
+          <div class="form-row">
+            <label>Test Name <input type="text" id="reportTestName" /></label>
+            <label>Bill Date <input type="text" id="reportBillDate" placeholder="e.g. 19-Mar-2026" /></label>
+          </div>
         </div>
 
         <div class="form-section">

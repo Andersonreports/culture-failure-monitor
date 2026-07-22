@@ -28,6 +28,7 @@ export const FAILURE_HEADERS = [
   'PatientName',
   'HospitalName',
   'TestName',
+  'BillDate',
   'Reason',
   'Notes',
   'ReportedBy',
@@ -45,6 +46,7 @@ export interface FailureRow {
   PatientName: string;
   HospitalName: string;
   TestName: string;
+  BillDate: string;
   Reason: string;
   Notes: string;
   ReportedBy: string;
