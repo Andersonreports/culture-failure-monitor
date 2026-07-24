@@ -2,6 +2,10 @@ export type FailureCategory = 'before' | 'after';
 
 export type RecollectionStatus = 'Pending' | 'Resolved';
 
+export type Role = 'wetlab' | 'coordinator' | 'manager';
+
+export const ROLES: readonly Role[] = ['wetlab', 'coordinator', 'manager'];
+
 export const FAILURE_TYPES: Record<FailureCategory, readonly string[]> = {
   before: [
     'Onco blocks - low tumor %',
@@ -68,5 +72,10 @@ export interface AppConfig {
   };
   whatsapp: {
     coordinatorNumber: string;
+  };
+  auth: {
+    configPath: string;
+    cookieName: string;
+    sessionTtlMs: number;
   };
 }

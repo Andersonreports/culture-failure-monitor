@@ -51,9 +51,81 @@ Copy `.env.example` to `.env` if you want to set a custom `PORT`, or fill in
 `COORDINATOR_WHATSAPP_NUMBER` — this is currently unused (see below) but
 reserved for when the notification mechanism is chosen.
 
+## Logging in (Wet Lab / Coordinator / Manager)
+
+The dashboard requires signing in as one of the three roles before it loads.
+Each role has its own password (not tied to any individual person), enforced
+server-side — the server itself refuses `POST /api/failures` (reporting a
+failure) unless the session is `wetlab`, and refuses
+`PATCH /api/failures/:category/:rowNumber` (marking recollection
+resolved/pending) unless the session is `coordinator`. `manager` is read-only.
+This replaces the old role-picker buttons, which were a client-side-only
+convenience that anyone could bypass from the browser's dev tools.
+
+Before first use, set a password for each role (one-time, run from the
+project root):
+
+```
+deno task set-password wetlab <password>
+deno task set-password coordinator <password>
+deno task set-password manager <password>
+```
+
+This stores a salted hash of each password in `server/data/auth-config.json`
+(never the plaintext) — re-run the same command to change a password later.
+Sessions last 12 hours, then that browser needs to sign in again.
+
+## Distributing as a standalone .exe
+
+To let someone else run this on their own Windows PC without installing
+Deno, compile it into a single executable:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\package.ps1
+```
+
+This requires `server\data\auth-config.json` to already exist (see "Logging
+in" above — set all three role passwords first; the script refuses to run
+otherwise). It produces one file, `dist\culture-failure-monitor.exe` — the
+login page, dashboard, styles, and your Google OAuth client are all baked
+into it via `deno compile --include` (see `deno.json`'s `build` task), so
+there's nothing else to send alongside it.
+
+Whatever is currently in `server\data\token.json` /
+`failure-sheet-config.json` at build time also gets baked in as a one-time
+seed: the first time the exe runs on another PC, it copies them into that
+PC's own `%APPDATA%\CultureFailureMonitor\` (which needs to be writable, so
+it can't live inside the exe itself) — meaning everyone ends up sharing this
+same already-connected Google Sheet automatically, no separate Google
+sign-in needed. Treat that exe like a password: whoever has it can read/write
+this Google account's Sheets and Drive upload folder, from any machine.
+If you'd rather each recipient connect their own Google account instead,
+clear out `server\data\token.json` and `failure-sheet-config.json` (leave
+the folder empty) before building — recipients will then see a "Connect now"
+prompt on first use (they'd need to be added as a test user in the OAuth
+consent screen in Google Cloud Console first).
+
+Just double-clicking the exe is enough — it hides its own console window and
+opens the recipient's browser straight to the login page automatically.
+
+### Building the exe in the cloud instead (GitHub Actions)
+
+`.github/workflows/build-exe.yml` can also compile it on GitHub's Windows
+runners (Actions → Build Windows exe → Run workflow → download the
+`culture-failure-monitor-windows` artifact once it finishes) — useful mainly
+to confirm the code compiles cleanly. It won't produce a real distributable
+exe on its own: `server\credentials\*` and `server\data\*` are gitignored,
+so GitHub's checkout never has your actual Google OAuth client, token, or
+login passwords, and the CI-built exe embeds those folders empty. Getting a
+working exe out of GitHub Actions would mean adding those files as encrypted
+repo secrets and writing them into place before the build step — a bigger
+step (and one that puts your credentials into GitHub's secret store) that
+this workflow doesn't attempt. For an exe that actually works, build it
+locally with `scripts\package.ps1` instead, where those files already exist.
+
 ## Using the dashboard
 
-- **Role picker** (top right): switch between **Wet Lab** and **Coordinator**. This is a UI convenience only (stored in your browser, not real login) — Wet Lab sees the "Report Failure" button on each panel; Coordinator gets a read-only view of both.
+- **Login** (see "Logging in" above): pick your role and enter its password. Wet Lab sees the "Report Failure" button on each panel; Coordinator gets a read-only view of both plus the ability to mark recollections resolved; Manager gets the read-only table/chart view.
 - **Report Failure**: click the button on either panel.
   - Upload the **bill/report screenshot** (required) — the browser tries to auto-read details (Order ID, Sample ID, Patient Name, Test Methodology, Test Name) straight off the image using on-device OCR (no server/AI call). This is a head start, not gospel — **always check the fields it fills in before submitting**, especially on messy or unusual bill layouts.
   - Optionally attach any number of **reference images** (clotted blood, lysed blood, onco block, etc.) — these are just attached for documentation, not read for data.

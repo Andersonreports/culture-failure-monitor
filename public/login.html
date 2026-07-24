@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Culture Failure Dashboard — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V2"/><path d="M9 2h6"/><path d="M6.5 12h11"/></svg>
+      </span>
+      <h1>Culture Failure Dashboard</h1>
+    </div>
+    <p class="login-subtitle">Sign in with your role to continue.</p>
+    <form id="loginForm">
+      <label>Role
+        <select id="loginRole" required>
+          <option value="" disabled selected>Select your role…</option>
+          <option value="wetlab">Wet Lab</option>
+          <option value="coordinator">Coordinator</option>
+          <option value="manager">Manager</option>
+        </select>
+      </label>
+      <label>Password
+        <input type="password" id="loginPassword" required autocomplete="current-password" />
+      </label>
+      <div id="loginError" class="modal-error" hidden></div>
+      <button type="submit" id="loginSubmit" class="primary">Sign in</button>
+    </form>
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>

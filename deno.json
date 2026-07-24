@@ -1,6 +1,8 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env server/index.ts"
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-sys --allow-run=cmd server/index.ts",
+    "build": "deno compile --allow-net --allow-read --allow-write --allow-env --allow-sys --allow-run=cmd --allow-ffi --include public --include server/views --include server/credentials --include server/data --output dist/culture-failure-monitor.exe server/index.ts",
+    "set-password": "deno run --allow-read --allow-write --allow-env server/scripts/setPassword.ts"
   },
   "imports": {
     "express": "npm:express@^4.19.2",

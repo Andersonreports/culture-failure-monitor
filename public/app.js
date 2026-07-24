@@ -20,7 +20,7 @@ const FAILURE_TYPES = {
 };
 
 const state = {
-  role: localStorage.getItem('cfm.role') || 'wetlab',
+  role: null,
   failures: { before: [], after: [] },
   filters: { from: '', to: '', department: 'all', client: 'all', category: 'all', failureType: 'all', status: 'all', search: '' },
   combinedFilter: 'all',
@@ -156,9 +156,6 @@ function formatTimestamp(isoString) {
 }
 
 function renderRoleUI() {
-  el('roleWetLab').classList.toggle('active', state.role === 'wetlab');
-  el('roleCoordinator').classList.toggle('active', state.role === 'coordinator');
-  el('roleManager').classList.toggle('active', state.role === 'manager');
   el('userRoleName').textContent = ROLE_LABELS[state.role] || 'Wet Lab';
   el('overviewSubtitle').textContent = ROLE_SUBTITLES[state.role] || ROLE_SUBTITLES.wetlab;
   document.querySelectorAll('.report-failure-btn').forEach((btn) => {
@@ -862,12 +859,6 @@ async function submitReport() {
   }
 }
 
-function setRole(role) {
-  state.role = role;
-  localStorage.setItem('cfm.role', role);
-  renderRoleUI();
-}
-
 function getAllFailuresFlat() {
   const before = (state.failures.before || []).map((f) => ({ ...f, _category: 'before' }));
   const after = (state.failures.after || []).map((f) => ({ ...f, _category: 'after' }));
@@ -1112,9 +1103,13 @@ el('reportCategory').addEventListener('change', () => {
   populateFailureTypeSelect(el('reportCategory').value);
   updateReasonRequiredHint();
 });
-el('roleWetLab').addEventListener('click', () => setRole('wetlab'));
-el('roleCoordinator').addEventListener('click', () => setRole('coordinator'));
-el('roleManager').addEventListener('click', () => setRole('manager'));
+el('logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } finally {
+    window.location.href = '/login.html';
+  }
+});
 
 ['filterFrom', 'filterTo', 'filterDepartment', 'filterClient', 'filterCategory', 'filterFailureType', 'filterStatus'].forEach((id) => {
   el(id).addEventListener('change', () => { readFiltersFromUI(); renderManagerView(); });
@@ -1175,7 +1170,23 @@ el('todayDateLabel').textContent = new Date().toLocaleDateString(undefined, {
   year: 'numeric', month: 'short', day: 'numeric',
 });
 
-renderRoleUI();
-fetchFailures();
-checkGoogleStatus();
-setInterval(fetchFailures, REFRESH_INTERVAL_MS);
+async function initSession() {
+  try {
+    const res = await fetch('/api/auth/session');
+    const data = await res.json();
+    if (!data.role) {
+      window.location.href = '/login.html';
+      return;
+    }
+    state.role = data.role;
+  } catch {
+    window.location.href = '/login.html';
+    return;
+  }
+  renderRoleUI();
+  fetchFailures();
+  checkGoogleStatus();
+  setInterval(fetchFailures, REFRESH_INTERVAL_MS);
+}
+
+initSession();

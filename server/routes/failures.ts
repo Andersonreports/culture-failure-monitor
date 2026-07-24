@@ -4,6 +4,7 @@ import multer from "multer";
 import googleSheets from "../services/googleSheets.ts";
 import { uploadImage } from "../services/googleDrive.ts";
 import { notifyCoordinator } from "../services/notifyService.ts";
+import { requireRole } from "../middleware/requireAuth.ts";
 import { FAILURE_HEADERS, FAILURE_TYPES, type FailureCategory, type RecollectionStatus } from "../types.ts";
 
 const router = express.Router();
@@ -44,6 +45,7 @@ router.get("/", async (_req: Request, res: Response) => {
 
 router.post(
   "/",
+  requireRole("wetlab"),
   upload.fields([
     { name: "billImage", maxCount: 1 },
     { name: "referenceImages", maxCount: 10 },
@@ -143,7 +145,7 @@ router.post(
   },
 );
 
-router.patch("/:category/:rowNumber", async (req: Request, res: Response) => {
+router.patch("/:category/:rowNumber", requireRole("coordinator"), async (req: Request, res: Response) => {
   const { category, rowNumber: rowNumberParam } = req.params;
   const rowNumber = Number(rowNumberParam);
   const recollectionStatus = (req.body as Record<string, unknown> | undefined)?.recollectionStatus;
