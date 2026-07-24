@@ -1,15 +1,7 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-sys --allow-run=cmd server/index.ts",
-    "build": "deno compile --allow-net --allow-read --allow-write --allow-env --allow-sys --allow-run=cmd --allow-ffi --include public --include server/views --include server/credentials --include server/data --output dist/culture-failure-monitor.exe server/index.ts",
-    "set-password": "deno run --allow-read --allow-write --allow-env server/scripts/setPassword.ts"
-  },
-  "imports": {
-    "express": "npm:express@^4.19.2",
-    "@types/express": "npm:@types/express@^4.17.21",
-    "googleapis": "npm:googleapis@^173.0.0",
-    "multer": "npm:multer@^2.2.0",
-    "@types/multer": "npm:@types/multer@^1.4.12"
+    "start-standalone": "deno run --allow-net --allow-read --allow-run --allow-env --allow-ffi standalone/serve.ts",
+    "build-standalone": "deno compile --allow-net --allow-read --allow-run --allow-env --allow-ffi --include standalone --output dist/culture-failure-dashboard.exe standalone/serve.ts"
   },
   "compilerOptions": {
     "strict": true

@@ -1,10 +1,5 @@
-node_modules/
 .env
 dist/
-server/credentials/*
-!server/credentials/.gitkeep
-server/data/*
-!server/data/.gitkeep
 
 # Local test images / sample data - may contain real patient PII, never commit.
 *.jpg
@@ -13,4 +8,4 @@ server/data/*
 *.csv
 
 # Decorative UI asset, not patient data.
-!public/background.jpg
+!standalone/background.jpg

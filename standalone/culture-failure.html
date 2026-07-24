@@ -1,0 +1,2516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Culture Failure Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --surface-1: #ffffff;
+      --page-plane: #f6f9f8;
+      --text-primary: #0f1e1c;
+      --text-secondary: #5c6b68;
+      --text-muted: #8d9997;
+      --gridline: #e7edec;
+      --border: rgba(15, 30, 28, 0.08);
+      --accent: #0d9488;
+      --accent-2: #2563eb;
+      --accent-grad: linear-gradient(135deg, #14b8a6 0%, #2563eb 100%);
+      --accent-wash: rgba(13, 148, 136, 0.10);
+
+      --status-good: #12a350;
+      --status-good-wash: rgba(18, 163, 80, 0.12);
+      --status-warning: #b8790a;
+      --status-warning-wash: rgba(230, 155, 15, 0.15);
+      --status-critical: #d21e4b;
+      --status-critical-wash: rgba(210, 30, 75, 0.12);
+      --status-muted: #8d9997;
+      --status-muted-wash: rgba(141, 153, 151, 0.14);
+
+      --cat-self: #2563eb;
+      --cat-self-wash: rgba(37, 99, 235, 0.10);
+      --cat-fish: #e8720f;
+      --cat-fish-wash: rgba(232, 114, 15, 0.12);
+
+      --radius: 18px;
+      --radius-sm: 12px;
+      --shadow-sm: 0 1px 2px rgba(15, 30, 28, 0.05);
+      --shadow-md: 0 10px 28px rgba(15, 30, 28, 0.08);
+      --shadow-lg: 0 24px 56px rgba(15, 30, 28, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { font-size: 18px; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-primary);
+      background: var(--page-plane);
+      min-height: 100vh;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url('background.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0.16;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    h1, h2, h3 {
+      font-family: "Fraunces", "Inter", serif;
+      font-optical-sizing: auto;
+    }
+
+    svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.75rem;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--accent-grad);
+      color: #fff;
+      flex-shrink: 0;
+      box-shadow: 0 4px 10px rgba(13, 148, 136, 0.32);
+    }
+    .brand-icon svg { width: 22px; height: 22px; }
+
+    .app-header h1 { font-size: 1.35rem; margin: 0; letter-spacing: -0.01em; font-weight: 600; color: #0b3b36; }
+    .subtitle { font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0 0; font-family: "Inter", sans-serif; }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      flex: 1;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .sheet-status {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--page-plane);
+    }
+    .sheet-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--status-muted);
+      flex-shrink: 0;
+    }
+    .sheet-status.ok .dot { background: var(--status-good); }
+    .sheet-status.warn .dot { background: var(--status-warning); }
+    .sheet-status-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-left: 0.15rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      background: var(--accent-wash);
+      color: #0b3b36;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.74rem;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .sheet-status-action svg { width: 12px; height: 12px; }
+    .sheet-status-action:hover { background: var(--accent); color: #fff; }
+    .sheet-status.warn .sheet-status-action { background: var(--status-warning-wash); color: var(--status-warning); }
+    .sheet-status.warn .sheet-status-action:hover { background: var(--status-warning); color: #fff; }
+
+    .header-search {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--page-plane);
+      color: var(--text-muted);
+      flex: 1 1 200px;
+      max-width: 340px;
+      min-width: 160px;
+    }
+    .header-search svg { flex-shrink: 0; }
+    .header-search input[type="text"] {
+      border: none;
+      background: transparent;
+      padding: 0;
+      font-size: 0.82rem;
+      color: var(--text-primary);
+      width: 100%;
+    }
+    .header-search input[type="text"]:focus { outline: none; }
+
+    .user-chip {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
+      gap: 0.6rem;
+      padding-left: 0.4rem;
+    }
+    .user-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--accent-wash);
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .user-text { display: flex; flex-direction: column; line-height: 1.25; }
+    .user-caption { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .role-select {
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .role-select:focus { outline: none; }
+
+    @media (max-width: 1150px) {
+      .header-search { flex-basis: 140px; min-width: 140px; }
+    }
+
+
+    main {
+      max-width: 1720px;
+      margin: 1.5rem auto;
+      padding: 0 1.25rem 2rem;
+    }
+
+    .config-banner {
+      max-width: 1720px;
+      margin: 1rem auto 0;
+      padding: 0.85rem 1.1rem;
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      background: var(--status-warning-wash);
+      color: var(--status-warning);
+      border: 1px solid var(--status-warning);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    .config-banner[hidden] { display: none; }
+    .config-banner code { background: rgba(0,0,0,0.06); padding: 0.05rem 0.3rem; border-radius: 4px; }
+
+    .manager-view {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .manager-view[hidden] { display: none; }
+
+    .panel {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 1.25rem 1.4rem;
+    }
+
+    .combined-panel[hidden] { display: none; }
+    .combined-panel .stat-row { flex-wrap: wrap; }
+    .combined-panel .stat-card { min-width: 200px; }
+
+    .overview-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    .overview-head h2 { font-size: 1.7rem; margin: 0; letter-spacing: -0.01em; }
+    .overview-head .subtitle { margin-top: 0.2rem; }
+    .overview-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .date-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .stat-row {
+      display: flex;
+      gap: 0.9rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .stat-main-row { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+    .stat-annex {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--status-critical);
+    }
+    .stat-progress {
+      display: block;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--gridline);
+      overflow: hidden;
+      margin-top: 0.3rem;
+    }
+    .stat-progress-bar {
+      display: block;
+      height: 100%;
+      background: var(--status-good);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    .overview-grid.single-column { grid-template-columns: 1fr; }
+    @media (max-width: 1100px) {
+      .overview-grid { grid-template-columns: 1fr; }
+    }
+
+    .list-section { min-width: 0; }
+    .list-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.9rem;
+    }
+    .list-head h3 { margin: 0; font-size: 1.05rem; }
+    .list-actions { display: flex; gap: 0.5rem; }
+
+    .inline-filter-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 0.75rem;
+      margin-bottom: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--page-plane);
+    }
+    .inline-filter-bar[hidden] { display: none; }
+
+    .card-list { display: flex; flex-direction: column; gap: 0.7rem; }
+
+    .failure-card {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--status-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+      text-align: left;
+      width: 100%;
+      font: inherit;
+      color: inherit;
+    }
+    .failure-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .failure-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .failure-card.tone-pending { border-left-color: var(--status-critical); }
+    .failure-card.tone-resolved { border-left-color: var(--status-good); }
+
+    .failure-card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .failure-card.cat-self .failure-card-icon { background: var(--cat-self-wash); color: var(--cat-self); }
+    .failure-card.cat-fish .failure-card-icon { background: var(--cat-fish-wash); color: var(--cat-fish); }
+
+    .failure-card-body { flex: 1; min-width: 0; }
+    .failure-card-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .failure-card-subtitle {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .failure-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-top: 0.3rem;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+    .failure-card-meta span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .failure-card-meta svg { width: 13px; height: 13px; }
+
+    .failure-card-side { display: flex; align-items: center; gap: 0.7rem; flex-shrink: 0; }
+
+    .chevron-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      color: var(--text-secondary);
+    }
+
+    .latest-panel h3 { margin: 0 0 0.9rem; font-size: 1.05rem; }
+    .latest-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 2.5rem 1rem;
+      color: var(--text-muted);
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .latest-empty svg { width: 26px; height: 26px; opacity: 0.6; }
+
+    .latest-image-frame {
+      position: relative;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 4 / 3;
+      background: var(--page-plane);
+      display: block;
+    }
+    .latest-image-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .latest-live-badge {
+      position: absolute;
+      top: 0.6rem;
+      left: 0.6rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(15, 30, 28, 0.65);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .latest-live-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--status-critical);
+    }
+    .latest-caption { margin-top: 0.75rem; }
+    .latest-caption-title { font-weight: 700; font-size: 0.92rem; }
+    .latest-caption-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+    .latest-caption-links { display: flex; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; }
+
+    .stat-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      background: var(--surface-1);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      font: inherit;
+      text-align: left;
+      color: inherit;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-card.clickable { cursor: pointer; }
+    .stat-card.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .stat-card.clickable.active { box-shadow: var(--shadow-md); border-color: var(--accent); }
+
+    .stat-card.tone-self .stat-label { color: var(--cat-self); }
+    .stat-card.tone-fish .stat-label { color: var(--cat-fish); }
+    .stat-card.tone-accent .stat-label { color: var(--accent); }
+    .stat-card.tone-accent .stat-value { color: var(--status-good); }
+    .stat-card.tone-warning .stat-label { color: var(--status-critical); }
+    .stat-card.tone-warning .stat-value { color: var(--status-critical); }
+    .stat-card.tone-good .stat-label { color: var(--accent-2); }
+    .stat-card.tone-good .stat-value { color: var(--status-good); }
+
+    .stat-value { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; font-family: "Fraunces", serif; }
+    .stat-label { font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+
+    .filter-bar {
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filter-field label { font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .filter-search { flex: 1; min-width: 200px; }
+    .filter-search input { width: 100%; }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    .chart-card {
+      min-width: 0;
+    }
+    .chart-card h3 {
+      font-size: 0.95rem;
+      margin: 0 0 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--gridline);
+      font-weight: 700;
+    }
+
+    .chart-svg-wrap { position: relative; }
+    .chart-svg-wrap > svg { width: 100%; height: auto; display: block; }
+    .legend-marker { width: 24px; height: 10px; }
+    .chart-empty { font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 1.5rem 0; margin: 0; }
+
+    .trend-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 5;
+      min-width: 160px;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+      padding: 0.6rem 0.75rem;
+      font-size: 0.78rem;
+    }
+    .trend-tooltip[hidden] { display: none; }
+    .tt-date { font-weight: 700; margin-bottom: 0.35rem; color: var(--text-primary); }
+    .tt-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-secondary);
+      padding: 1px 0;
+    }
+    .tt-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .tt-val { margin-left: auto; font-weight: 700; color: var(--text-primary); padding-left: 0.75rem; }
+    .tt-total { border-top: 1px solid var(--border); margin-top: 0.3rem; padding-top: 0.3rem; font-weight: 600; color: var(--text-primary); }
+    .legend-marker { flex-shrink: 0; }
+
+    .chart-legend {
+      display: flex;
+      gap: 1.1rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .recollection-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border: none;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .recollection-pill::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .recollection-pill.tone-pending { background: var(--status-critical); color: #fff; }
+    .recollection-pill.tone-pending::before { background: #fff; }
+    .recollection-pill.tone-resolved { background: var(--status-good); color: #fff; }
+    .recollection-pill.tone-resolved::before { background: #fff; }
+    .recollection-pill:disabled { cursor: default; opacity: 1; }
+    .recollection-pill:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+
+    @media (max-width: 900px) {
+      .chart-grid { grid-template-columns: 1fr; }
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: opacity 0.15s ease, transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+    }
+    button:hover { background: var(--page-plane); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button[hidden] { display: none; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    button.primary {
+      background: var(--accent-grad);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 3px 10px rgba(13, 148, 136, 0.3);
+    }
+    button.primary:hover:not(:disabled) { box-shadow: 0 5px 14px rgba(13, 148, 136, 0.4); transform: translateY(-1px); }
+
+    button.danger {
+      background: var(--status-critical);
+      border-color: var(--status-critical);
+      color: #fff;
+      box-shadow: 0 3px 10px rgba(210, 30, 75, 0.3);
+    }
+    button.danger:hover:not(:disabled) { background: #b31641; box-shadow: 0 5px 14px rgba(210, 30, 75, 0.36); transform: translateY(-1px); }
+
+    button.ghost { background: transparent; border-color: transparent; }
+    button.ghost:hover { background: var(--page-plane); border-color: var(--border); }
+
+
+    label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    input[type="text"], input[type="date"], input[type="password"], textarea, select {
+      padding: 0.5rem 0.65rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-family: inherit;
+    }
+    input[type="text"]:focus, input[type="date"]:focus, input[type="password"]:focus, textarea:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    input[type="file"] {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      width: 100%;
+    }
+    input[type="file"]::file-selector-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.9rem;
+      margin-right: 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--accent-wash);
+      color: #0b3b36;
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    input[type="file"]::file-selector-button:hover { background: var(--accent); color: #fff; }
+
+    .required-mark { color: var(--status-critical); }
+
+    .hint { font-size: 0.78rem; color: var(--text-muted); margin: -0.3rem 0 0; }
+
+    .link { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .link:hover { text-decoration: underline; }
+
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--gridline);
+    }
+    .form-section:last-child { border-bottom: none; padding-bottom: 0; }
+    .form-section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .file-field { gap: 6px; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
+    }
+    @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+    .ocr-status {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      background: var(--accent-wash);
+      border-radius: var(--radius-sm);
+      padding: 0.4rem 0.65rem;
+    }
+    .ocr-status[hidden] { display: none; }
+    .ocr-status.ocr-warn { background: var(--status-warning-wash); color: var(--status-warning); }
+    .ocr-status.ocr-done { background: var(--status-good-wash); color: var(--status-good); }
+    .ocr-raw-details { font-size: 0.78rem; color: var(--text-secondary); }
+    .ocr-raw-details[hidden] { display: none; }
+    .ocr-raw-text { white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; background: var(--page-plane); border-radius: var(--radius-sm); padding: 0.5rem 0.65rem; margin: 0.4rem 0 0; }
+
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: var(--page-plane);
+      color: var(--text-secondary);
+      font-weight: 700;
+      text-align: left;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      z-index: 1;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--gridline);
+      padding: 0.7rem 0.75rem;
+      white-space: nowrap;
+    }
+
+    tbody tr:hover { background: var(--accent-wash); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .cat-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .cat-pill.tone-self { background: var(--cat-self); color: #fff; }
+    .cat-pill.tone-fish { background: var(--cat-fish); color: #fff; }
+
+    .empty-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      padding: 1.5rem 1rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .empty-state svg { width: 26px; height: 26px; margin-bottom: 0.25rem; opacity: 0.6; }
+    .empty-state p { margin: 0; }
+    .empty-state.visible { display: flex; }
+    .failures-table.hidden { display: none; }
+
+
+    .toast-area {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 100;
+      max-width: 340px;
+    }
+
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius-sm);
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      font-size: 0.82rem;
+      animation: toast-in 0.18s ease;
+    }
+    .toast svg { margin-top: 1px; }
+    .toast-success { color: var(--status-good); border-color: var(--status-good); }
+    .toast-error { color: var(--status-critical); border-color: var(--status-critical); }
+    .toast span.msg { color: var(--text-primary); }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .spin { animation: spin 0.8s linear infinite; }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(16, 18, 26, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 1rem;
+    }
+    .modal-overlay[hidden] { display: none; }
+
+    .modal {
+      background: var(--surface-1);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 560px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-header h3 { margin: 0; font-size: 1.05rem; flex: 1; }
+    .modal-close { padding: 0.3rem; border: none; }
+
+    .modal-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      overflow-y: auto;
+    }
+    .modal-body input[type="text"], .modal-body textarea, .modal-body select {
+      width: 100%;
+      resize: vertical;
+    }
+
+    .modal-error {
+      padding: 0.6rem 0.75rem;
+      border-radius: var(--radius-sm);
+      background: var(--status-critical-wash);
+      color: var(--status-critical);
+      font-size: 0.82rem;
+    }
+    .modal-error[hidden] { display: none; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem 1.25rem;
+    }
+    @media (max-width: 480px) { .detail-grid { grid-template-columns: 1fr; } }
+    .detail-field { display: flex; flex-direction: column; gap: 2px; }
+    .detail-field.full { grid-column: 1 / -1; }
+    .detail-field-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+    .detail-field-value { font-size: 0.88rem; color: var(--text-primary); }
+    .detail-images { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .detail-image-thumb {
+      width: 84px;
+      height: 84px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .detail-image-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detail-patient-name {
+      font-family: "Fraunces", serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .detail-recollection { display: flex; align-items: center; gap: 0.75rem; }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 640px) {
+      .app-header { flex-direction: column; align-items: flex-start; }
+      .header-controls { width: 100%; justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V2"/><path d="M9 2h6"/><path d="M6.5 12h11"/></svg>
+      </span>
+      <div>
+        <h1>Culture Failure Dashboard</h1>
+        <p class="subtitle">Before/after-processing failures, reported live from the wet lab</p>
+      </div>
+    </div>
+    <div class="header-controls">
+      <label class="header-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="headerSearch" placeholder="Search records…" />
+      </label>
+      <div id="sheetStatus" class="sheet-status">
+        <span class="dot"></span>
+        <span class="sheet-status-text">Checking connection…</span>
+      </div>
+      <div class="user-chip">
+        <span class="user-avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        </span>
+        <span class="user-text">
+          <span class="user-caption">Viewing as</span>
+          <select id="rolePicker" class="role-select" aria-label="View as role">
+            <option value="wetlab">Wet Lab</option>
+            <option value="coordinator">Coordinator</option>
+            <option value="manager">Manager</option>
+          </select>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <div id="configBanner" class="config-banner" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17v.1"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    <span>Not connected yet. Open this file and set <code>APPS_SCRIPT_URL</code> near the top of the script to your deployed Apps Script web-app <code>/exec</code> URL. See <code>standalone/README.md</code>.</span>
+  </div>
+
+  <main>
+    <section id="combinedView" class="combined-panel">
+      <div class="overview-head">
+        <div>
+          <h2>Culture Failures</h2>
+          <p class="subtitle" id="overviewSubtitle">Real-time status for before/after-processing samples</p>
+        </div>
+        <div class="overview-head-actions">
+          <span class="date-chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span id="todayDateLabel"></span>
+          </span>
+          <button class="report-failure-btn primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Report Failure</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <button type="button" class="stat-card tone-accent clickable" data-combined-filter="all">
+          <span class="stat-label">Total</span>
+          <span class="stat-value" data-combined-stat="total">0</span>
+        </button>
+        <button type="button" class="stat-card tone-warning clickable" data-combined-filter="pending">
+          <span class="stat-label">Pending Recollection</span>
+          <span class="stat-main-row">
+            <span class="stat-value" data-combined-stat="pending">0</span>
+            <span class="stat-annex" data-combined-annex="pending" hidden>Needs Review</span>
+          </span>
+        </button>
+        <button type="button" class="stat-card tone-good clickable" data-combined-filter="resolved">
+          <span class="stat-label">Resolved</span>
+          <span class="stat-value" data-combined-stat="resolved">0</span>
+          <span class="stat-progress"><span class="stat-progress-bar" data-combined-progress="resolved"></span></span>
+        </button>
+      </div>
+
+      <div class="overview-grid" id="overviewGrid">
+        <div class="list-section panel">
+          <div class="list-head">
+            <h3>Recent Failures</h3>
+            <div class="list-actions">
+              <button type="button" id="combinedFilterToggle" class="ghost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+                <span>Filter</span>
+              </button>
+              <button type="button" id="combinedExportBtn" class="ghost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+                <span>Export</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="inline-filter-bar" id="combinedFilterBar" hidden>
+            <div class="filter-field">
+              <label for="combinedCategoryFilter">Category</label>
+              <select id="combinedCategoryFilter">
+                <option value="all">All</option>
+                <option value="before">Before Processing</option>
+                <option value="after">After Processing</option>
+              </select>
+            </div>
+            <button type="button" id="combinedFilterReset" class="ghost">Reset</button>
+          </div>
+
+          <div id="combinedCardList" class="card-list"></div>
+          <div class="empty-state" id="combinedEmptyState">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/></svg>
+            <p>No failures reported yet.</p>
+          </div>
+        </div>
+
+        <aside class="latest-panel panel" id="latestPanel">
+          <h3>Latest Failure</h3>
+          <div id="latestFailureCard"></div>
+        </aside>
+      </div>
+    </section>
+
+    <div id="managerView" class="manager-view" hidden>
+      <div class="filter-bar panel">
+        <div class="filter-field">
+          <label for="filterFrom">From</label>
+          <input type="date" id="filterFrom" />
+        </div>
+        <div class="filter-field">
+          <label for="filterTo">To</label>
+          <input type="date" id="filterTo" />
+        </div>
+        <div class="filter-field">
+          <label for="filterDepartment">Department</label>
+          <select id="filterDepartment">
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterClient">Client</label>
+          <select id="filterClient">
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterCategory">Category</label>
+          <select id="filterCategory">
+            <option value="all">All</option>
+            <option value="before">Before Processing</option>
+            <option value="after">After Processing</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterFailureType">Failure Type</label>
+          <select id="filterFailureType">
+            <option value="all">All</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="filterStatus">Status</label>
+          <select id="filterStatus">
+            <option value="all">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+        </div>
+        <div class="filter-field filter-search">
+          <label for="filterSearch">Search</label>
+          <input type="text" id="filterSearch" placeholder="Reason, failure type, test, patient, hospital…" />
+        </div>
+        <button id="filterReset" class="ghost">Reset</button>
+        <button id="managerExportBtn" class="ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span>Export</span>
+        </button>
+      </div>
+
+      <div class="stat-row manager-stat-row">
+        <div class="stat-card tone-accent">
+          <span class="stat-label">Total</span>
+          <span class="stat-value" data-mgr-stat="total">0</span>
+        </div>
+        <div class="stat-card tone-warning">
+          <span class="stat-label">Pending Recollection</span>
+          <span class="stat-value" data-mgr-stat="pending">0</span>
+        </div>
+        <div class="stat-card tone-good">
+          <span class="stat-label">Resolved</span>
+          <span class="stat-value" data-mgr-stat="resolved">0</span>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card panel">
+          <h3>Failure Type Breakdown</h3>
+          <div id="breakdownChart" class="chart-svg-wrap"></div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="failures-table" id="managerTable">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Category</th>
+              <th>Sample ID</th>
+              <th>Order ID</th>
+              <th>Patient Name</th>
+              <th>Hospital Name</th>
+              <th>Test Name</th>
+              <th>Failure Type</th>
+              <th>Reason</th>
+              <th>Reported By</th>
+              <th>Mail Sent</th>
+              <th>Images</th>
+              <th>Recollection</th>
+            </tr>
+          </thead>
+          <tbody id="managerTableBody"></tbody>
+        </table>
+        <div class="empty-state" id="managerEmptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/></svg>
+          <p>No failures match the current filters.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toastArea" class="toast-area"></div>
+
+  <div id="reportFailureModalOverlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+      <div class="modal-header">
+        <h3 id="reportModalTitle">Report a culture failure</h3>
+        <button id="reportModalClose" class="ghost modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="reportModalError" class="modal-error" hidden></div>
+
+        <div class="form-section">
+          <label>Category <span class="required-mark">*</span>
+            <select id="reportCategory">
+              <option value="" disabled selected>Select…</option>
+              <option value="before">Before Processing</option>
+              <option value="after">After Processing</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-section">
+          <label class="file-field">Bill / Report Screenshot <span class="required-mark">*</span>
+            <input type="file" id="reportBillImage" accept="image/*" />
+          </label>
+          <div id="ocrStatus" class="ocr-status" hidden></div>
+          <details id="ocrRawTextDetails" class="ocr-raw-details" hidden>
+            <summary>Show text the app read from the image</summary>
+            <pre id="ocrRawText" class="ocr-raw-text"></pre>
+          </details>
+          <p class="hint">Upload the bill/report screenshot - the app will try to read the details below automatically. Please check them before submitting.</p>
+        </div>
+
+        <div class="form-section">
+          <span class="form-section-title">Sample Details</span>
+          <div class="form-row">
+            <label>Order ID <input type="text" id="reportOrderId" /></label>
+            <label>Sample ID <input type="text" id="reportSampleId" /></label>
+          </div>
+          <div class="form-row">
+            <label>Patient Name <input type="text" id="reportPatientName" /></label>
+            <label>Hospital Name <input type="text" id="reportHospitalName" /></label>
+          </div>
+          <div class="form-row">
+            <label>Test Name <input type="text" id="reportTestName" /></label>
+            <label>Bill Date <input type="text" id="reportBillDate" placeholder="e.g. 19-Mar-2026" /></label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <span class="form-section-title">Failure Details</span>
+          <label>Failure Type <span class="required-mark">*</span>
+            <select id="reportFailureType">
+              <option value="" disabled selected>Select…</option>
+            </select>
+          </label>
+          <label>
+            <span id="reportReasonLabel">Reason (optional)</span>
+            <textarea id="reportReason" rows="3" placeholder="Add extra detail if needed"></textarea>
+          </label>
+          <label>Notes (optional) <textarea id="reportNotes" rows="2"></textarea></label>
+        </div>
+
+        <div class="form-section">
+          <span class="form-section-title">Reporter &amp; References</span>
+          <label>Reported By <input type="text" id="reportReportedBy" /></label>
+          <label class="file-field">Reference Images (optional) - clotted blood, lysed blood, onco block, etc.
+            <input type="file" id="reportReferenceImages" accept="image/*" multiple />
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="reportModalCancel" class="ghost">Cancel</button>
+        <button id="reportModalSubmit" class="danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Submit Report</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailModalOverlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+      <div class="modal-header">
+        <h3 id="detailModalTitle">Failure detail</h3>
+        <button id="detailModalClose" class="ghost modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="detailModalBody"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+  /* ─────────────────────────────────────────────────────────────────────────
+   * CONFIG — paste your deployed Apps Script web-app /exec URL here.
+   * Deploy apps-script/Code.gs as a Web App (see standalone/README.md).
+   * ───────────────────────────────────────────────────────────────────────── */
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuNGHx24eoZELaMiID5S7Y4Q2ZKX1rthJbG_aUu67ldPAcGXpz7jrWisS0zEfldzIMxw/exec';
+
+  const REFRESH_INTERVAL_MS = 60000;
+
+  const FAILURE_TYPES = {
+    before: [
+      'Onco blocks - low tumor %',
+      'Blood Sample - Lysed/Hemolysed/Clotted',
+      'Wrong sample tubes',
+      'Other',
+    ],
+    after: [
+      'Karyotyping - Metaphase not yielded/contaminated',
+      'NIPS - QC matrix failed',
+      'Onco - low DNA/RNA concentration',
+      'Onco-sequencing QC failure',
+      'Microarray - No fetal genotype After MCC',
+      'Covid - IC failed',
+      'Fish her2 - Non diagnostics sample',
+      'Other',
+    ],
+  };
+
+  const state = {
+    role: 'wetlab',
+    failures: { before: [], after: [] },
+    filters: { from: '', to: '', department: 'all', client: 'all', category: 'all', failureType: 'all', status: 'all', search: '' },
+    combinedFilter: 'all',
+    combinedCategory: 'all',
+    headerSearch: '',
+  };
+
+  const ROLE_SUBTITLES = {
+    wetlab: 'Report culture failures as they happen — recollection status is updated by the Coordinator.',
+    coordinator: 'Chase repeat samples with the client and mark recollections resolved once arranged.',
+    manager: 'Real-time status for before/after-processing samples',
+  };
+
+  const el = (id) => document.getElementById(id);
+
+  const isConfigured = () => APPS_SCRIPT_URL && APPS_SCRIPT_URL !== 'PASTE_YOUR_WEB_APP_URL_HERE';
+
+  /* ─── API layer (Apps Script web app) ─────────────────────────────────────
+   * Uses redirect:'follow' and NO custom headers so the request stays a
+   * "simple" CORS request — the /exec 302 → googleusercontent.com response
+   * (which carries Access-Control-Allow-Origin:*) is what the browser reads.
+   * ───────────────────────────────────────────────────────────────────────── */
+  async function apiGet(action) {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}`, { redirect: 'follow' });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+
+  async function apiPost(payload) {
+    const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+
+  function fileToImagePayload(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result);
+        const comma = result.indexOf(',');
+        resolve({
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          data: comma >= 0 ? result.slice(comma + 1) : result,
+        });
+      };
+      reader.onerror = () => reject(new Error(`Could not read file ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function animateStatValue(target, value) {
+    const start = Number(target.textContent) || 0;
+    if (start === value) { target.textContent = value; return; }
+    const duration = 400;
+    const startTime = performance.now();
+    function step(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      target.textContent = Math.round(start + (value - start) * eased);
+      if (progress < 1) requestAnimationFrame(step);
+      else target.textContent = value;
+    }
+    requestAnimationFrame(step);
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  const ICONS = {
+    success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg>',
+    error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.1"/></svg>',
+    spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spin"><path d="M21 12a9 9 0 1 1-9-9"/></svg>',
+    before: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V2"/><path d="M9 2h6"/></svg>',
+    after: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3c0 4 3 4 3 8s-3 4-3 8M18 3c0 4-3 4-3 8s3 4 3 8"/><path d="M8 7h8M8 17h8"/></svg>',
+    person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+    photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m5 18 4.5-5 3 3L17 11l2 3"/></svg>',
+    externalLink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+  };
+
+  function timeAgo(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return '';
+    const diffMs = Date.now() - d.getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+    const days = Math.round(hrs / 24);
+    if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+    return formatTimestamp(isoString);
+  }
+
+  function svgNode(markup) {
+    const template = document.createElement('template');
+    template.innerHTML = markup.trim();
+    return template.content.firstElementChild;
+  }
+
+  function toast(message, kind = 'info') {
+    const area = el('toastArea');
+    const div = document.createElement('div');
+    div.className = `toast toast-${kind}`;
+    if (kind === 'success' || kind === 'error') {
+      div.appendChild(svgNode(ICONS[kind]));
+    }
+    const span = document.createElement('span');
+    span.className = 'msg';
+    span.textContent = message;
+    div.appendChild(span);
+    area.appendChild(div);
+    setTimeout(() => div.remove(), 5000);
+  }
+
+  async function checkGoogleStatus() {
+    const statusEl = el('sheetStatus');
+    const textEl = statusEl.querySelector('.sheet-status-text');
+    if (!isConfigured()) {
+      statusEl.classList.add('warn');
+      statusEl.classList.remove('ok');
+      textEl.textContent = 'Not configured';
+      return;
+    }
+    try {
+      const data = await apiGet('status');
+      textEl.innerHTML = '';
+      statusEl.title = 'Google Sheet connection status';
+      if (data.authenticated && data.sheetUrl) {
+        statusEl.classList.add('ok');
+        statusEl.classList.remove('warn');
+        textEl.append('Sheet connected');
+        const link = document.createElement('a');
+        link.href = data.sheetUrl;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.className = 'sheet-status-action';
+        link.appendChild(svgNode(ICONS.externalLink));
+        link.appendChild(document.createTextNode('Open sheet'));
+        textEl.appendChild(link);
+      } else {
+        statusEl.classList.add('ok');
+        statusEl.classList.remove('warn');
+        textEl.append('Sheet connected');
+      }
+    } catch (err) {
+      statusEl.classList.add('warn');
+      statusEl.classList.remove('ok');
+      statusEl.querySelector('.sheet-status-text').textContent = 'Could not check Google Sheet status.';
+    }
+  }
+
+  function formatTimestamp(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return isoString;
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function renderRoleUI() {
+    el('rolePicker').value = state.role;
+    el('overviewSubtitle').textContent = ROLE_SUBTITLES[state.role] || ROLE_SUBTITLES.wetlab;
+    document.querySelectorAll('.report-failure-btn').forEach((btn) => {
+      btn.hidden = state.role !== 'wetlab';
+    });
+
+    const isManager = state.role === 'manager';
+    el('combinedView').hidden = isManager;
+    el('managerView').hidden = !isManager;
+    renderActiveView();
+  }
+
+  function renderActiveView() {
+    if (state.role === 'manager') renderManagerView();
+    else renderCombined();
+  }
+
+  function buildImagesCell(f) {
+    const tdImages = document.createElement('td');
+    const links = [];
+    if (f.BillImageLink) links.push({ href: f.BillImageLink, label: 'Bill' });
+    (f.ReferenceImageLinks || '').split(';').map((s) => s.trim()).filter(Boolean).forEach((href, i) => {
+      links.push({ href, label: `Ref ${i + 1}` });
+    });
+    if (!links.length) {
+      tdImages.textContent = '—';
+    } else {
+      links.forEach((l, i) => {
+        const a = document.createElement('a');
+        a.href = l.href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = l.label;
+        a.className = 'link';
+        tdImages.appendChild(a);
+        if (i < links.length - 1) tdImages.appendChild(document.createTextNode(' · '));
+      });
+    }
+    return tdImages;
+  }
+
+  function buildRecollectionCell(category, f, editable) {
+    const td = document.createElement('td');
+    const status = f.RecollectionStatus === 'Resolved' ? 'Resolved' : 'Pending';
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `recollection-pill tone-${status.toLowerCase()}`;
+    pill.textContent = status;
+    if (editable) {
+      pill.addEventListener('click', () => toggleRecollection(category, f.rowNumber, status));
+    } else {
+      pill.disabled = true;
+    }
+    td.appendChild(pill);
+    return td;
+  }
+
+  async function toggleRecollection(category, rowNumber, currentStatus) {
+    const nextStatus = currentStatus === 'Resolved' ? 'Pending' : 'Resolved';
+    const target = (state.failures[category] || []).find((f) => f.rowNumber === rowNumber);
+    if (!target) return;
+    const previousStatus = target.RecollectionStatus;
+
+    target.RecollectionStatus = nextStatus;
+    renderActiveView();
+
+    try {
+      await apiPost({ action: 'setRecollection', category, rowNumber, recollectionStatus: nextStatus });
+    } catch (err) {
+      target.RecollectionStatus = previousStatus;
+      renderActiveView();
+      toast(err.message, 'error');
+    }
+  }
+
+  function buildFailureRow(f, editableRecollection) {
+    const tr = document.createElement('tr');
+
+    const tdTs = document.createElement('td');
+    tdTs.textContent = formatTimestamp(f.Timestamp);
+    tr.appendChild(tdTs);
+
+    const tdCat = document.createElement('td');
+    const catPill = document.createElement('span');
+    catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
+    catPill.textContent = f._category === 'before' ? 'Before' : 'After';
+    tdCat.appendChild(catPill);
+    tr.appendChild(tdCat);
+
+    [f.SampleID, f.OrderID, f.PatientName, f.HospitalName, f.TestName, f.FailureType, f.Reason, f.ReportedBy, f.MailSent]
+      .forEach((value) => {
+        const td = document.createElement('td');
+        td.textContent = value || '';
+        tr.appendChild(td);
+      });
+
+    tr.appendChild(buildImagesCell(f));
+    tr.appendChild(buildRecollectionCell(f._category, f, editableRecollection));
+    return tr;
+  }
+
+  function isResolved(f) {
+    return f.RecollectionStatus === 'Resolved';
+  }
+
+  function driveImageSrc(link) {
+    if (!link) return '';
+    const match = link.match(/\/file\/d\/([^/]+)/);
+    if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+    return link;
+  }
+
+  function firstImageLink(f) {
+    if (f.BillImageLink) return f.BillImageLink;
+    const ref = (f.ReferenceImageLinks || '').split(';').map((s) => s.trim()).filter(Boolean)[0];
+    return ref || '';
+  }
+
+  function buildFailureCard(f) {
+    const status = isResolved(f) ? 'Resolved' : 'Pending';
+    const card = document.createElement('div');
+    card.className = `failure-card tone-${status.toLowerCase()} cat-${f._category === 'before' ? 'self' : 'fish'}`;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+
+    const icon = document.createElement('span');
+    icon.className = 'failure-card-icon';
+    icon.appendChild(svgNode(ICONS[f._category === 'before' ? 'before' : 'after']));
+    card.appendChild(icon);
+
+    const body = document.createElement('span');
+    body.className = 'failure-card-body';
+
+    const title = document.createElement('span');
+    title.className = 'failure-card-title';
+    title.textContent = `${f.PatientName || 'Unknown patient'} — ${f.FailureType || f.Reason || `Sample ${f.SampleID || f.OrderID || ''}`}`;
+    body.appendChild(title);
+
+    const subtitle = document.createElement('span');
+    subtitle.className = 'failure-card-subtitle';
+    subtitle.textContent = `${f.HospitalName || 'Unknown client'} · ${f.TestName || '—'}`;
+    body.appendChild(subtitle);
+
+    const meta = document.createElement('span');
+    meta.className = 'failure-card-meta';
+    const reporterSpan = document.createElement('span');
+    reporterSpan.appendChild(svgNode(ICONS.person));
+    reporterSpan.appendChild(document.createTextNode(f.ReportedBy || 'Unknown'));
+    meta.appendChild(reporterSpan);
+    const timeSpan = document.createElement('span');
+    timeSpan.appendChild(svgNode(ICONS.clock));
+    timeSpan.appendChild(document.createTextNode(timeAgo(f.Timestamp)));
+    meta.appendChild(timeSpan);
+    body.appendChild(meta);
+    card.appendChild(body);
+
+    const side = document.createElement('span');
+    side.className = 'failure-card-side';
+    const canEditRecollection = state.role === 'coordinator';
+    const pill = document.createElement(canEditRecollection ? 'button' : 'span');
+    if (canEditRecollection) pill.type = 'button';
+    pill.className = `recollection-pill tone-${status.toLowerCase()}`;
+    pill.textContent = status;
+    if (canEditRecollection) {
+      pill.title = status === 'Resolved' ? 'Mark as Pending' : 'Mark as Resolved';
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleRecollection(f._category, f.rowNumber, status);
+      });
+    }
+    side.appendChild(pill);
+    const chevron = document.createElement('span');
+    chevron.className = 'chevron-btn';
+    chevron.appendChild(svgNode(ICONS.chevron));
+    side.appendChild(chevron);
+    card.appendChild(side);
+
+    card.addEventListener('click', () => openDetailModal(f));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDetailModal(f);
+      }
+    });
+    return card;
+  }
+
+  function renderLatestFailure(all) {
+    const container = el('latestFailureCard');
+    container.innerHTML = '';
+    if (!all.length) {
+      const empty = document.createElement('div');
+      empty.className = 'latest-empty';
+      empty.appendChild(svgNode(ICONS.photo));
+      const p = document.createElement('p');
+      p.textContent = 'No failures reported yet.';
+      empty.appendChild(p);
+      container.appendChild(empty);
+      return;
+    }
+    const latest = [...all].sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))[0];
+    const imgLink = firstImageLink(latest);
+
+    const frame = document.createElement('div');
+    frame.className = 'latest-image-frame';
+    if (imgLink) {
+      const img = document.createElement('img');
+      img.src = driveImageSrc(imgLink);
+      img.alt = `Bill/reference image for sample ${latest.SampleID || latest.OrderID || ''}`;
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => {
+        frame.classList.add('latest-empty');
+        img.remove();
+        frame.prepend(svgNode(ICONS.photo));
+      }, { once: true });
+      frame.appendChild(img);
+    } else {
+      frame.classList.add('latest-empty');
+      frame.appendChild(svgNode(ICONS.photo));
+    }
+    const badge = document.createElement('span');
+    badge.className = 'latest-live-badge';
+    badge.textContent = latest._category === 'before' ? 'Before Processing' : 'After Processing';
+    frame.appendChild(badge);
+    container.appendChild(frame);
+
+    const caption = document.createElement('div');
+    caption.className = 'latest-caption';
+    const captionTitle = document.createElement('div');
+    captionTitle.className = 'latest-caption-title';
+    captionTitle.textContent = latest.PatientName || latest.SampleID || 'Unnamed sample';
+    caption.appendChild(captionTitle);
+    const captionMeta = document.createElement('div');
+    captionMeta.className = 'latest-caption-meta';
+    captionMeta.textContent = `${latest.TestName || latest.FailureType || 'Culture failure'} · ${timeAgo(latest.Timestamp)}`;
+    caption.appendChild(captionMeta);
+
+    const links = document.createElement('div');
+    links.className = 'latest-caption-links';
+    const viewLink = document.createElement('a');
+    viewLink.className = 'link';
+    viewLink.href = '#';
+    viewLink.textContent = 'View details';
+    viewLink.addEventListener('click', (e) => { e.preventDefault(); openDetailModal(latest); });
+    links.appendChild(viewLink);
+    if (imgLink) {
+      const openLink = document.createElement('a');
+      openLink.className = 'link';
+      openLink.href = imgLink;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener';
+      openLink.textContent = 'Open image';
+      links.appendChild(openLink);
+    }
+    caption.appendChild(links);
+    container.appendChild(caption);
+  }
+
+  function matchesCombinedFilters(f) {
+    if (state.combinedCategory !== 'all' && f._category !== state.combinedCategory) return false;
+    if (state.headerSearch) {
+      const haystack = [
+        f.Reason, f.FailureType, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(state.headerSearch.toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  function sortFailuresForRole(a, b) {
+    if (state.role === 'coordinator') {
+      const aResolved = isResolved(a) ? 1 : 0;
+      const bResolved = isResolved(b) ? 1 : 0;
+      if (aResolved !== bResolved) return aResolved - bResolved;
+    }
+    return (b.Timestamp || '').localeCompare(a.Timestamp || '');
+  }
+
+  function renderCombined() {
+    const showLatestPanel = state.role === 'coordinator';
+    el('overviewGrid').classList.toggle('single-column', !showLatestPanel);
+    el('latestPanel').hidden = !showLatestPanel;
+
+    const all = getAllFailuresFlat();
+    const pendingCount = all.filter((f) => !isResolved(f)).length;
+    const resolvedCount = all.filter(isResolved).length;
+    animateStatValue(document.querySelector('[data-combined-stat="total"]'), all.length);
+    animateStatValue(document.querySelector('[data-combined-stat="pending"]'), pendingCount);
+    animateStatValue(document.querySelector('[data-combined-stat="resolved"]'), resolvedCount);
+
+    const pendingAnnex = document.querySelector('[data-combined-annex="pending"]');
+    pendingAnnex.hidden = pendingCount === 0;
+    const progressBar = document.querySelector('[data-combined-progress="resolved"]');
+    progressBar.style.width = all.length ? `${Math.round((resolvedCount / all.length) * 100)}%` : '0%';
+
+    document.querySelectorAll('[data-combined-filter]').forEach((card) => {
+      card.classList.toggle('active', card.dataset.combinedFilter === state.combinedFilter);
+    });
+
+    let filtered = state.combinedFilter === 'pending'
+      ? all.filter((f) => !isResolved(f))
+      : state.combinedFilter === 'resolved'
+        ? all.filter(isResolved)
+        : all;
+    filtered = filtered.filter(matchesCombinedFilters);
+
+    const list = el('combinedCardList');
+    const emptyState = el('combinedEmptyState');
+    list.innerHTML = '';
+
+    if (!filtered.length) {
+      list.hidden = true;
+      emptyState.classList.add('visible');
+      emptyState.querySelector('p').textContent = all.length
+        ? 'No failures match the current filters.'
+        : 'No failures reported yet.';
+    } else {
+      list.hidden = false;
+      emptyState.classList.remove('visible');
+      [...filtered]
+        .sort(sortFailuresForRole)
+        .forEach((f) => list.appendChild(buildFailureCard(f)));
+    }
+
+    if (showLatestPanel) renderLatestFailure(all);
+  }
+
+  function exportCSV(list, filename) {
+    const columns = ['Timestamp', 'Category', 'SampleID', 'OrderID', 'PatientName', 'HospitalName', 'TestName', 'BillDate', 'FailureType', 'Reason', 'ReportedBy', 'MailSent', 'RecollectionStatus', 'BillImageLink', 'ReferenceImageLinks'];
+    const escapeCsv = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = list.map((f) => columns.map((c) => escapeCsv(c === 'Category' ? (f._category === 'before' ? 'Before Processing' : 'After Processing') : f[c])).join(','));
+    const csv = [columns.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function buildDetailField(label, value, full) {
+    const wrap = document.createElement('div');
+    wrap.className = full ? 'detail-field full' : 'detail-field';
+    const l = document.createElement('div');
+    l.className = 'detail-field-label';
+    l.textContent = label;
+    const v = document.createElement('div');
+    v.className = 'detail-field-value';
+    v.textContent = value || '—';
+    wrap.appendChild(l);
+    wrap.appendChild(v);
+    return wrap;
+  }
+
+  function openDetailModal(f) {
+    el('detailModalTitle').textContent = `${f.TestName || f.FailureType || 'Culture failure'} — ${f.SampleID || f.OrderID || ''}`;
+    const body = el('detailModalBody');
+    body.innerHTML = '';
+
+    const patientHeading = document.createElement('div');
+    patientHeading.className = 'detail-patient-name';
+    patientHeading.textContent = f.PatientName || 'Unknown patient';
+    body.appendChild(patientHeading);
+
+    const status = isResolved(f) ? 'Resolved' : 'Pending';
+    const recollectionRow = document.createElement('div');
+    recollectionRow.className = 'detail-recollection';
+    const catPill = document.createElement('span');
+    catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
+    catPill.textContent = f._category === 'before' ? 'Before Processing' : 'After Processing';
+    recollectionRow.appendChild(catPill);
+    const canEditRecollection = state.role === 'coordinator';
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `recollection-pill tone-${status.toLowerCase()}`;
+    pill.textContent = status;
+    if (canEditRecollection) {
+      pill.addEventListener('click', () => {
+        toggleRecollection(f._category, f.rowNumber, status);
+        closeDetailModal();
+      });
+    } else {
+      pill.disabled = true;
+      pill.title = 'Only the Coordinator can update recollection status';
+    }
+    recollectionRow.appendChild(pill);
+    body.appendChild(recollectionRow);
+
+    const grid = document.createElement('div');
+    grid.className = 'detail-grid';
+    grid.appendChild(buildDetailField('Timestamp', formatTimestamp(f.Timestamp)));
+    grid.appendChild(buildDetailField('Sample ID', f.SampleID));
+    grid.appendChild(buildDetailField('Order ID', f.OrderID));
+    grid.appendChild(buildDetailField('Hospital Name', f.HospitalName));
+    grid.appendChild(buildDetailField('Test Name', f.TestName));
+    grid.appendChild(buildDetailField('Bill Date', f.BillDate));
+    grid.appendChild(buildDetailField('Failure Type', f.FailureType));
+    grid.appendChild(buildDetailField('Reported By', f.ReportedBy));
+    grid.appendChild(buildDetailField('Mail Sent', f.MailSent));
+    grid.appendChild(buildDetailField('Reason', f.Reason, true));
+    body.appendChild(grid);
+
+    const imageLinks = [];
+    if (f.BillImageLink) imageLinks.push({ href: f.BillImageLink, label: 'Bill' });
+    (f.ReferenceImageLinks || '').split(';').map((s) => s.trim()).filter(Boolean).forEach((href, i) => {
+      imageLinks.push({ href, label: `Ref ${i + 1}` });
+    });
+    if (imageLinks.length) {
+      const imagesLabel = document.createElement('div');
+      imagesLabel.className = 'detail-field-label';
+      imagesLabel.textContent = 'Images';
+      body.appendChild(imagesLabel);
+      const imagesWrap = document.createElement('div');
+      imagesWrap.className = 'detail-images';
+      imageLinks.forEach((l) => {
+        const a = document.createElement('a');
+        a.href = l.href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.className = 'detail-image-thumb';
+        a.title = l.label;
+        const img = document.createElement('img');
+        img.src = driveImageSrc(l.href);
+        img.alt = l.label;
+        img.referrerPolicy = 'no-referrer';
+        a.appendChild(img);
+        imagesWrap.appendChild(a);
+      });
+      body.appendChild(imagesWrap);
+    }
+
+    el('detailModalOverlay').hidden = false;
+  }
+
+  function closeDetailModal() {
+    el('detailModalOverlay').hidden = true;
+  }
+
+  async function fetchFailures() {
+    if (!isConfigured()) return;
+    try {
+      const data = await apiGet('getAll');
+      state.failures = { before: data.before || [], after: data.after || [] };
+      refreshManagerFilterOptions();
+      renderActiveView();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function resetReportForm() {
+    ['reportOrderId', 'reportSampleId', 'reportPatientName', 'reportHospitalName',
+      'reportTestName', 'reportBillDate', 'reportReason', 'reportNotes', 'reportReportedBy'].forEach((id) => {
+      el(id).value = '';
+    });
+    el('reportCategory').value = '';
+    el('reportBillImage').value = '';
+    el('reportReferenceImages').value = '';
+    el('reportModalError').hidden = true;
+    el('reportModalError').textContent = '';
+    const ocrStatus = el('ocrStatus');
+    ocrStatus.hidden = true;
+    ocrStatus.className = 'ocr-status';
+    ocrStatus.textContent = '';
+    el('ocrRawTextDetails').hidden = true;
+  }
+
+  function parseOcrText(text) {
+    const found = {};
+    const norm = text.replace(/\s+/g, ' ').trim();
+
+    const patientNo = norm.match(/patient\s*no\.?\s*([A-Za-z0-9]+)/i);
+    if (patientNo) found.reportSampleId = patientNo[1];
+
+    const billLabNo = norm.match(/bill\s*\/?\s*lab\s*no\.?\s*([A-Za-z0-9]+)\s*\/\s*([A-Za-z0-9]+)/i);
+    if (billLabNo) found.reportOrderId = billLabNo[1];
+
+    const name = norm.match(/\bname\s+([A-Za-z.\s]+?)\s*[([]/i);
+    if (name) found.reportPatientName = name[1].trim();
+
+    const panelRegion = norm.match(/bill\s*user\s+\S+\s+(.*?)\s*(?:#|test\s*code|test\s*name)/i);
+    if (panelRegion) {
+      const hospital = panelRegion[1]
+        .replace(/pan\S*name/ig, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[^A-Za-z0-9]+/, '')
+        .trim();
+      if (hospital.length > 3) found.reportHospitalName = hospital;
+    }
+
+    const testRow = norm.match(/test\s*name.*?(?:total|rate)\s*(.+?)\s*(?:bill\s*amount|rate)/i);
+    if (testRow) {
+      const capsRuns = testRow[1].match(/[A-Z]{2,}(?:[\s-]+[A-Za-z0-9]{2,})*/g);
+      if (capsRuns && capsRuns.length) {
+        found.reportTestName = capsRuns
+          .sort((a, b) => b.length - a.length)[0]
+          .replace(/[\s\d.,]+$/, '')
+          .trim();
+      }
+    }
+
+    const visitDate = norm.match(/visit\s*date\s*[:\-]?\s*(\d{1,2}[-/][A-Za-z0-9]{2,9}[-/]\d{2,4})/i);
+    if (visitDate) found.reportBillDate = visitDate[1];
+
+    return found;
+  }
+
+  function preprocessBillImage(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const targetWidth = 2000;
+          const scale = img.naturalWidth < targetWidth ? targetWidth / img.naturalWidth : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.naturalWidth * scale);
+          canvas.height = Math.round(img.naturalHeight * scale);
+          const ctx = canvas.getContext('2d');
+          ctx.filter = 'grayscale(1) contrast(1.3)';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          resolve(canvas);
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          resolve(file);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
+  async function runOcrOnBillImage(file) {
+    const status = el('ocrStatus');
+    status.hidden = false;
+    status.className = 'ocr-status';
+    status.textContent = 'Reading image…';
+
+    if (typeof Tesseract === 'undefined') {
+      status.className = 'ocr-status ocr-warn';
+      status.textContent = 'Auto-read unavailable (offline?) - please fill in the details manually.';
+      return;
+    }
+
+    try {
+      const ocrInput = await preprocessBillImage(file);
+      const { data } = await Tesseract.recognize(ocrInput, 'eng');
+      const rawText = data.text || '';
+
+      const rawDetails = el('ocrRawTextDetails');
+      el('ocrRawText').textContent = rawText.trim() || '(no text detected in image)';
+      rawDetails.hidden = false;
+
+      const found = parseOcrText(rawText);
+      const filledCount = Object.keys(found).length;
+      Object.entries(found).forEach(([id, value]) => {
+        el(id).value = value;
+      });
+      if (filledCount > 0) {
+        status.className = 'ocr-status ocr-done';
+        status.textContent = `Read ${filledCount} field(s) from the image - please check them before submitting.`;
+      } else {
+        status.className = 'ocr-status ocr-warn';
+        status.textContent = "Couldn't detect fields automatically - please fill in the details manually.";
+      }
+    } catch (err) {
+      status.className = 'ocr-status ocr-warn';
+      status.textContent = "Couldn't read the image automatically - please fill in the details manually.";
+    }
+  }
+
+  function populateFailureTypeSelect(category) {
+    const select = el('reportFailureType');
+    select.innerHTML = '<option value="" disabled selected>Select…</option>';
+    (FAILURE_TYPES[category] || []).forEach((type) => {
+      const opt = document.createElement('option');
+      opt.value = type;
+      opt.textContent = type;
+      select.appendChild(opt);
+    });
+    select.disabled = !FAILURE_TYPES[category];
+  }
+
+  function openReportModal() {
+    const overlay = el('reportFailureModalOverlay');
+    resetReportForm();
+    populateFailureTypeSelect('');
+    updateReasonRequiredHint();
+    overlay.hidden = false;
+    el('reportCategory').focus();
+  }
+
+  function updateReasonRequiredHint() {
+    const isOther = el('reportFailureType').value === 'Other';
+    const label = el('reportReasonLabel');
+    if (isOther) {
+      label.innerHTML = 'Reason <span class="required-mark">*</span>';
+    } else {
+      label.textContent = 'Reason (optional)';
+    }
+  }
+
+  function closeReportModal() {
+    el('reportFailureModalOverlay').hidden = true;
+  }
+
+  async function submitReport() {
+    const category = el('reportCategory').value;
+    const errorBox = el('reportModalError');
+    errorBox.hidden = true;
+
+    if (!isConfigured()) {
+      errorBox.textContent = 'This dashboard is not connected yet — set APPS_SCRIPT_URL in the page source first.';
+      errorBox.hidden = false;
+      return;
+    }
+
+    if (category !== 'before' && category !== 'after') {
+      errorBox.textContent = 'Please select a Category (Before or After Processing).';
+      errorBox.hidden = false;
+      return;
+    }
+
+    const fields = {
+      category,
+      orderId: el('reportOrderId').value.trim(),
+      sampleId: el('reportSampleId').value.trim(),
+      patientName: el('reportPatientName').value.trim(),
+      hospitalName: el('reportHospitalName').value.trim(),
+      testName: el('reportTestName').value.trim(),
+      billDate: el('reportBillDate').value.trim(),
+      failureType: el('reportFailureType').value,
+      reason: el('reportReason').value.trim(),
+      notes: el('reportNotes').value.trim(),
+      reportedBy: el('reportReportedBy').value.trim(),
+    };
+    const billImageFile = el('reportBillImage').files[0];
+    const referenceImageFiles = Array.from(el('reportReferenceImages').files || []);
+
+    if (!billImageFile) {
+      errorBox.textContent = 'Please upload the bill/report screenshot.';
+      errorBox.hidden = false;
+      return;
+    }
+    if (!fields.failureType) {
+      errorBox.textContent = 'Please select a Failure Type.';
+      errorBox.hidden = false;
+      return;
+    }
+    if (fields.failureType === 'Other' && !fields.reason) {
+      errorBox.textContent = 'Reason is required when Failure Type is "Other".';
+      errorBox.hidden = false;
+      return;
+    }
+    if (!fields.reportedBy) {
+      errorBox.textContent = 'Reported By is required.';
+      errorBox.hidden = false;
+      return;
+    }
+    if (!fields.sampleId && !fields.orderId) {
+      errorBox.textContent = 'Enter at least a Sample ID or Order ID.';
+      errorBox.hidden = false;
+      return;
+    }
+
+    const submitBtn = el('reportModalSubmit');
+    const original = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '';
+    submitBtn.appendChild(svgNode(ICONS.spinner));
+    submitBtn.appendChild(document.createTextNode(' Uploading & Submitting…'));
+
+    try {
+      const [billImage, referenceImages] = await Promise.all([
+        fileToImagePayload(billImageFile),
+        Promise.all(referenceImageFiles.map(fileToImagePayload)),
+      ]);
+
+      await apiPost({ action: 'report', ...fields, billImage, referenceImages });
+      toast('Failure reported and saved. (WhatsApp notification to the coordinator isn\'t connected yet.)', 'success');
+      closeReportModal();
+      await fetchFailures();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = original;
+    }
+  }
+
+  function getAllFailuresFlat() {
+    const before = (state.failures.before || []).map((f) => ({ ...f, _category: 'before' }));
+    const after = (state.failures.after || []).map((f) => ({ ...f, _category: 'after' }));
+    return [...before, ...after];
+  }
+
+  const DEPARTMENT_RULES = [
+    ['NIPS', /nips/i],
+    ['Karyotyping', /karyotyp/i],
+    ['Onco/NGS', /onco|ngs|cancer/i],
+    ['Covid', /covid/i],
+    ['Microarray', /microarray/i],
+    ['FISH', /\bfish\b|her2/i],
+    ['PCR/Molecular', /pcr|hcv|flu/i],
+  ];
+
+  function deriveDepartment(f) {
+    const text = `${f.TestName || ''} ${f.FailureType || ''}`;
+    const hit = DEPARTMENT_RULES.find(([, re]) => re.test(text));
+    return hit ? hit[0] : 'Other';
+  }
+
+  function matchesFilters(f) {
+    const { from, to, category, status, search, department, client, failureType } = state.filters;
+    if (category !== 'all' && f._category !== category) return false;
+    if (status !== 'all' && (f.RecollectionStatus || 'Pending') !== status) return false;
+    if (department && department !== 'all' && deriveDepartment(f) !== department) return false;
+    if (client && client !== 'all' && (f.HospitalName || '') !== client) return false;
+    if (failureType && failureType !== 'all' && (f.FailureType || '') !== failureType) return false;
+    if (from || to) {
+      const day = f.Timestamp ? f.Timestamp.slice(0, 10) : '';
+      if (from && day < from) return false;
+      if (to && day > to) return false;
+    }
+    if (search) {
+      const haystack = [
+        f.Reason, f.FailureType, f.TestName, f.PatientName, f.HospitalName, f.SampleID, f.OrderID,
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(search.toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  function getFilteredFailures() {
+    return getAllFailuresFlat().filter(matchesFilters);
+  }
+
+  function readFiltersFromUI() {
+    state.filters = {
+      from: el('filterFrom').value,
+      to: el('filterTo').value,
+      department: el('filterDepartment').value,
+      client: el('filterClient').value,
+      category: el('filterCategory').value,
+      failureType: el('filterFailureType').value,
+      status: el('filterStatus').value,
+      search: el('filterSearch').value.trim(),
+    };
+  }
+
+  function populateSelectOptions(select, values) {
+    const previous = select.value;
+    select.innerHTML = '<option value="all">All</option>';
+    values.forEach((v) => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+    select.value = values.includes(previous) ? previous : 'all';
+  }
+
+  function refreshManagerFilterOptions() {
+    const all = getAllFailuresFlat();
+    const departments = [...new Set(all.map(deriveDepartment))].sort();
+    const clients = [...new Set(all.map((f) => f.HospitalName).filter(Boolean))].sort();
+    const failureTypes = [...new Set(all.map((f) => f.FailureType).filter(Boolean))].sort();
+    populateSelectOptions(el('filterDepartment'), departments);
+    populateSelectOptions(el('filterClient'), clients);
+    populateSelectOptions(el('filterFailureType'), failureTypes);
+  }
+
+  function renderManagerTable(filtered) {
+    const tbody = el('managerTableBody');
+    const table = el('managerTable');
+    const emptyState = el('managerEmptyState');
+    tbody.innerHTML = '';
+
+    if (!filtered.length) {
+      table.classList.add('hidden');
+      emptyState.classList.add('visible');
+      return;
+    }
+    table.classList.remove('hidden');
+    emptyState.classList.remove('visible');
+
+    [...filtered]
+      .sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''))
+      .forEach((f) => tbody.appendChild(buildFailureRow(f, false)));
+  }
+
+  function niceTicks(maxVal) {
+    const max = Math.max(1, maxVal);
+    const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+    let step = steps[steps.length - 1];
+    for (const s of steps) {
+      if (max / s <= 4) { step = s; break; }
+    }
+    let niceMax = Math.ceil(max / step) * step;
+    if (niceMax === max) niceMax += step;
+    const ticks = [];
+    for (let v = 0; v <= niceMax + 1e-9; v += step) ticks.push(Math.round(v));
+    return { niceMax, ticks };
+  }
+
+  function renderBreakdownChart(filtered) {
+    const container = el('breakdownChart');
+    const counts = new Map();
+    const catCounts = new Map();
+    filtered.forEach((f) => {
+      const type = f.FailureType || '(none)';
+      counts.set(type, (counts.get(type) || 0) + 1);
+      const cats = catCounts.get(type) || { before: 0, after: 0 };
+      cats[f._category === 'before' ? 'before' : 'after'] += 1;
+      catCounts.set(type, cats);
+    });
+    const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+
+    if (!entries.length) {
+      container.innerHTML = '<p class="chart-empty">No data for the current filters.</p>';
+      return;
+    }
+
+    const width = 1120;
+    const rowHeight = 34;
+    const padTop = 8;
+    const padL = 8;
+    const labelWidth = 280;
+    const padR = 44;
+    const padBottom = 28;
+    const plotX0 = padL + labelWidth;
+    const plotX1 = width - padR;
+    const plotW = plotX1 - plotX0;
+    const height = padTop + entries.length * rowHeight + padBottom;
+    const plotBottom = padTop + entries.length * rowHeight;
+    const { niceMax, ticks } = niceTicks(Math.max(...entries.map(([, c]) => c)));
+    const xScale = (v) => plotX0 + (v / niceMax) * plotW;
+    const truncate = (s) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
+
+    const xGrid = ticks.map((t) => {
+      const x = xScale(t).toFixed(1);
+      return `<line x1="${x}" y1="${padTop}" x2="${x}" y2="${plotBottom}" stroke="var(--gridline)" stroke-width="1" stroke-dasharray="4 4" />`
+        + `<text x="${x}" y="${height - 8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${t}</text>`;
+    }).join('');
+
+    const rows = entries.map(([type, count], i) => {
+      const y = padTop + i * rowHeight;
+      const barY = y + 6;
+      const barH = rowHeight - 12;
+      const barW = Math.max(3, xScale(count) - plotX0);
+      const cats = catCounts.get(type);
+      const color = cats.after > cats.before ? 'var(--cat-fish)' : 'var(--cat-self)';
+      return `
+        <rect class="bd-track" x="${plotX0}" y="${barY.toFixed(1)}" width="${plotW}" height="${barH}" rx="5" fill="var(--page-plane)" opacity="0" />
+        <text x="${plotX0 - 10}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)" text-anchor="end">${escapeHtml(truncate(type))}<title>${escapeHtml(type)}</title></text>
+        <rect x="${plotX0}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="5" fill="${color}" />
+        <text x="${(plotX0 + barW + 8).toFixed(1)}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)">${count}</text>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Failure type breakdown" preserveAspectRatio="xMidYMid meet">
+        ${xGrid}
+        ${rows}
+      </svg>
+      <div class="trend-tooltip" hidden></div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-self)"></span>Mostly Before Processing</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-fish)"></span>Mostly After Processing</span>
+      </div>
+    `;
+
+    const svg = container.querySelector('svg');
+    const tooltip = container.querySelector('.trend-tooltip');
+    const tracks = Array.from(svg.querySelectorAll('.bd-track'));
+
+    const onMove = (e) => {
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width) return;
+      const vbY = ((e.clientY - rect.top) / rect.height) * height;
+      const i = Math.floor((vbY - padTop) / rowHeight);
+      tracks.forEach((t, k) => { t.setAttribute('opacity', k === i ? '1' : '0'); });
+      if (i < 0 || i >= entries.length) { tooltip.hidden = true; return; }
+      const [type, count] = entries[i];
+      const cats = catCounts.get(type);
+      tooltip.innerHTML = `
+        <div class="tt-date">${escapeHtml(type)}</div>
+        <div class="tt-row"><span class="tt-dot" style="background:var(--cat-self)"></span>Before Processing<span class="tt-val">${cats.before}</span></div>
+        <div class="tt-row"><span class="tt-dot" style="background:var(--cat-fish)"></span>After Processing<span class="tt-val">${cats.after}</span></div>
+        <div class="tt-row tt-total">Total<span class="tt-val">${count}</span></div>`;
+      tooltip.hidden = false;
+      const ttW = tooltip.offsetWidth;
+      const pxX = e.clientX - rect.left;
+      let left = pxX + 14;
+      if (left + ttW > rect.width) left = pxX - ttW - 14;
+      tooltip.style.left = `${Math.max(4, left)}px`;
+      const rowPxY = ((padTop + i * rowHeight) / height) * rect.height;
+      tooltip.style.top = `${rowPxY}px`;
+    };
+    const onLeave = () => {
+      tooltip.hidden = true;
+      tracks.forEach((t) => t.setAttribute('opacity', '0'));
+    };
+    svg.addEventListener('mousemove', onMove);
+    svg.addEventListener('mouseleave', onLeave);
+  }
+
+  function renderManagerView() {
+    const filtered = getFilteredFailures();
+    const pending = filtered.filter((f) => (f.RecollectionStatus || 'Pending') !== 'Resolved').length;
+    const resolved = filtered.length - pending;
+
+    animateStatValue(document.querySelector('[data-mgr-stat="total"]'), filtered.length);
+    animateStatValue(document.querySelector('[data-mgr-stat="pending"]'), pending);
+    animateStatValue(document.querySelector('[data-mgr-stat="resolved"]'), resolved);
+
+    renderBreakdownChart(filtered);
+    renderManagerTable(filtered);
+  }
+
+  document.querySelectorAll('.report-failure-btn').forEach((btn) => {
+    btn.addEventListener('click', () => openReportModal());
+  });
+  document.querySelectorAll('[data-combined-filter]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const filter = card.dataset.combinedFilter;
+      state.combinedFilter = state.combinedFilter === filter ? 'all' : filter;
+      renderCombined();
+    });
+  });
+  el('reportCategory').addEventListener('change', () => {
+    populateFailureTypeSelect(el('reportCategory').value);
+    updateReasonRequiredHint();
+  });
+  el('rolePicker').addEventListener('change', (e) => {
+    state.role = e.target.value;
+    renderRoleUI();
+  });
+
+  ['filterFrom', 'filterTo', 'filterDepartment', 'filterClient', 'filterCategory', 'filterFailureType', 'filterStatus'].forEach((id) => {
+    el(id).addEventListener('change', () => { readFiltersFromUI(); renderManagerView(); });
+  });
+  el('filterSearch').addEventListener('input', () => { readFiltersFromUI(); renderManagerView(); });
+  el('filterReset').addEventListener('click', () => {
+    el('filterFrom').value = '';
+    el('filterTo').value = '';
+    el('filterDepartment').value = 'all';
+    el('filterClient').value = 'all';
+    el('filterCategory').value = 'all';
+    el('filterFailureType').value = 'all';
+    el('filterStatus').value = 'all';
+    el('filterSearch').value = '';
+    readFiltersFromUI();
+    renderManagerView();
+  });
+  el('reportModalCancel').addEventListener('click', closeReportModal);
+  el('reportModalClose').addEventListener('click', closeReportModal);
+  el('reportModalSubmit').addEventListener('click', submitReport);
+  el('reportBillImage').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) runOcrOnBillImage(file);
+  });
+  el('reportFailureType').addEventListener('change', updateReasonRequiredHint);
+
+  el('headerSearch').addEventListener('input', (e) => {
+    state.headerSearch = e.target.value.trim();
+    if (state.role !== 'manager') renderCombined();
+  });
+  el('combinedFilterToggle').addEventListener('click', () => {
+    el('combinedFilterBar').hidden = !el('combinedFilterBar').hidden;
+  });
+  el('combinedCategoryFilter').addEventListener('change', (e) => {
+    state.combinedCategory = e.target.value;
+    renderCombined();
+  });
+  el('combinedFilterReset').addEventListener('click', () => {
+    state.combinedCategory = 'all';
+    el('combinedCategoryFilter').value = 'all';
+    el('headerSearch').value = '';
+    state.headerSearch = '';
+    renderCombined();
+  });
+  el('combinedExportBtn').addEventListener('click', () => {
+    const all = getAllFailuresFlat().filter(matchesCombinedFilters);
+    exportCSV(all, 'culture-failures.csv');
+  });
+  el('managerExportBtn').addEventListener('click', () => {
+    exportCSV(getFilteredFailures(), 'culture-failures-filtered.csv');
+  });
+  el('detailModalClose').addEventListener('click', closeDetailModal);
+  el('detailModalOverlay').addEventListener('click', (e) => {
+    if (e.target === el('detailModalOverlay')) closeDetailModal();
+  });
+
+  el('todayDateLabel').textContent = new Date().toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  });
+
+  function init() {
+    el('configBanner').hidden = isConfigured();
+    renderRoleUI();
+    fetchFailures();
+    checkGoogleStatus();
+    if (isConfigured()) setInterval(fetchFailures, REFRESH_INTERVAL_MS);
+  }
+
+  init();
+  </script>
+</body>
+</html>
