@@ -10,7 +10,7 @@
 // Dev:    deno task start-standalone
 // Build:  deno task build-standalone   (or scripts/package-standalone.ps1)
 
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 
 // `deno compile` extracts the bundled source + `--include`d files into a
 // synthetic temp dir at runtime, preserving their relative paths. This module
@@ -18,7 +18,15 @@ import { extname, join } from "node:path";
 // `deno run` and compiled contexts.
 const ROOT = import.meta.dirname!;
 const INDEX = "culture-failure.html";
-const PORT = Number(Deno.env.get("PORT") ?? "3100");
+
+function readPort(): number {
+  try {
+    return Number(Deno.env.get("PORT") ?? "3100");
+  } catch {
+    return 3100;
+  }
+}
+const PORT = readPort();
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -65,9 +73,48 @@ function toUtf16Nul(s: string): Uint8Array {
   return buf;
 }
 
+// Best-effort log file next to the exe itself — NOT under `ROOT`, which for a
+// compiled binary is a temp dir that gets torn down when the process exits.
+// This is what lets a failure on someone else's machine be diagnosed after
+// the fact, instead of just "it flashed and closed." Falls back to %TEMP% in
+// case the exe is run from a folder the user can't write to.
+function logCandidates(): string[] {
+  const name = "culture-failure-dashboard-error.log";
+  const candidates: string[] = [];
+  try {
+    candidates.push(join(dirname(Deno.execPath()), name));
+  } catch {
+    // ignore
+  }
+  try {
+    const tmp = Deno.env.get("TEMP") ?? Deno.env.get("TMP");
+    if (tmp) candidates.push(join(tmp, name));
+  } catch {
+    // ignore
+  }
+  candidates.push(name);
+  return candidates;
+}
+
+function writeCrashLog(message: string) {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  for (const path of logCandidates()) {
+    try {
+      Deno.writeTextFileSync(path, line, { append: true });
+      return;
+    } catch {
+      // Try the next candidate location.
+    }
+  }
+}
+
 // Native Windows message box for startup failures — the compiled exe has no
 // visible console, so an error (e.g. port in use) would otherwise be silent.
+// Always logs first: if the message box itself can't be shown (e.g. FFI
+// blocked by AV/policy on the recipient's machine), the failure is still
+// captured on disk instead of vanishing with the process.
 function showFatalError(message: string) {
+  writeCrashLog(message);
   if (Deno.build.os !== "windows" || !isCompiledBinary()) {
     console.error(message);
     return;
@@ -77,8 +124,8 @@ function showFatalError(message: string) {
       MessageBoxW: { parameters: ["pointer", "buffer", "buffer", "u32"], result: "i32" },
     });
     user32.symbols.MessageBoxW(null, toUtf16Nul(message), toUtf16Nul("Culture Failure Dashboard"), 0x10);
-  } catch {
-    // Nothing more we can do.
+  } catch (err) {
+    writeCrashLog(`(message box also failed to display: ${err instanceof Error ? err.message : String(err)})`);
   }
 }
 
@@ -118,9 +165,29 @@ async function handler(req: Request): Promise<Response> {
   }
 }
 
-hideConsoleWindow();
+function fail(err: unknown) {
+  const msg = err instanceof Deno.errors.AddrInUse
+    ? `Culture Failure Dashboard is already running (port ${PORT} is in use).\n\n` +
+      `Check Task Manager for an existing process, or set a different PORT.`
+    : `Culture Failure Dashboard failed to start:\n${err instanceof Error ? (err.stack ?? err.message) : String(err)}`;
+  showFatalError(msg);
+  Deno.exit(1);
+}
+
+// Last-resort safety net: catch anything that escapes the try/catch below
+// (e.g. a rejected promise from the request handler) so the process always
+// reports before it dies, rather than exiting silently.
+globalThis.addEventListener("error", (e) => {
+  e.preventDefault();
+  fail(e.error ?? e.message);
+});
+globalThis.addEventListener("unhandledrejection", (e) => {
+  e.preventDefault();
+  fail(e.reason);
+});
 
 try {
+  hideConsoleWindow();
   Deno.serve({
     port: PORT,
     hostname: "127.0.0.1",
@@ -131,10 +198,5 @@ try {
     },
   }, handler);
 } catch (err) {
-  const msg = err instanceof Deno.errors.AddrInUse
-    ? `Culture Failure Dashboard is already running (port ${PORT} is in use).\n\n` +
-      `Check Task Manager for an existing process, or set a different PORT.`
-    : `Culture Failure Dashboard failed to start:\n${err instanceof Error ? err.message : String(err)}`;
-  showFatalError(msg);
-  Deno.exit(1);
+  fail(err);
 }
