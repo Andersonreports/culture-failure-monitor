@@ -1,9 +1,0 @@
-{
-  "tasks": {
-    "start-standalone": "deno run --allow-net --allow-read --allow-write --allow-run --allow-env --allow-ffi standalone/serve.ts",
-    "build-standalone": "deno compile --allow-net --allow-read --allow-write --allow-run --allow-env --allow-ffi --include standalone --output dist/culture-failure-dashboard.exe standalone/serve.ts"
-  },
-  "compilerOptions": {
-    "strict": true
-  }
-}

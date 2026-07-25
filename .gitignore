@@ -1,5 +1,4 @@
 .env
-dist/
 
 # Local test images / sample data - may contain real patient PII, never commit.
 *.jpg
@@ -8,4 +7,4 @@ dist/
 *.csv
 
 # Decorative UI asset, not patient data.
-!standalone/background.jpg
+!/background.jpg
