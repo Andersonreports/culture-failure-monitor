@@ -1,52 +1,12 @@
-/**
- * Culture Failure Monitor — Apps Script backend (single file)
- *
- * Paste this whole file into the Apps Script project bound to the
- * "Culture Failure Monitor - Failure Log" spreadsheet
- * (Extensions → Apps Script from that sheet). It contains BOTH halves of the
- * backend:
- *
- *   PART 1 — DATA API (web app)
- *     doGet/doPost endpoints the standalone dashboard calls to read/write the
- *     sheet and upload images to Drive. Deploy via Deploy → New deployment →
- *     Web app (execute as Me, access Anyone) and paste the /exec URL into
- *     APPS_SCRIPT_URL in standalone/culture-failure.html.
- *
- *   PART 2 — EMAIL NOTIFIER (time trigger)
- *     Emails the coordinator each new failure + a 72h reminder for anything
- *     still pending. Run installTrigger() ONCE to start it. Runs on a 5-minute
- *     timer (not onEdit) because rows are added via the Sheets API, which does
- *     not fire edit/change triggers.
- *
- * The two parts are independent (no shared names); they only share the sheet.
- */
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * PART 1 — DATA API (web app)
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * Endpoints (all responses are JSON):
- *   GET  ?action=getAll   -> { before: [row...], after: [row...] }
- *   GET  ?action=status   -> { authenticated: true, sheetUrl }
- *   POST { action:'report', ...fields, billImage, referenceImages }
- *   POST { action:'setRecollection', category, rowNumber, recollectionStatus }
- *
- * CORS: the client fetches with `redirect:'follow'` and no custom headers, so
- * the /exec 302 -> googleusercontent.com response (which carries
- * Access-Control-Allow-Origin:*) is what the browser reads. Do NOT add a JSON
- * Content-Type on the client or a preflight will break it — send the body as
- * the default text/plain.
- */
-
-// ─── Configuration ──────────────────────────────────────────────────────────
 var CATEGORY_TABS = {
   before: 'Before Processing Failure',
   after: 'After Processing Failure',
+  hla: 'HLA failures',
 };
 
 var IMAGE_FOLDER_NAME = 'Culture Failure Monitor - Images';
+var IMAGE_FOLDER_ID_PROP = 'imageFolderId';
 
-// Must stay in lock-step with the dashboard and the FAILURE_PHRASES below.
 var FAILURE_HEADERS = [
   'Timestamp',
   'OrderID',
@@ -82,8 +42,21 @@ var FAILURE_TYPES = {
     'Fish her2 - Non diagnostics sample',
     'Other',
   ],
+  hla: [
+    'No name/reference number on the requisition or container',
+    'Incorrect or insufficient information on label',
+    'Illegible or incomplete request form',
+    'EDTA Blood / Cord Blood Not received within 48 hours',
+    'DNA not extracted within 72 hours',
+    'Mismatch of name on the container and request.',
+    'Clotted or hemolyzed EDTA, sodium heparin, ACD blood',
+    'Lipemic or hemolyzed serum sample',
+    'EDTA blood: Insufficient volume',
+    'DNA concentration <5 ng/µL',
+    'Improper transport temperature',
+    'Other',
+  ],
 };
-// ──────────────────────────────────────────────────────────────────────────────
 
 function jsonOut(obj) {
   return ContentService
@@ -112,15 +85,12 @@ function doPost(e) {
   }
 }
 
-// ─── Sheet helpers ──────────────────────────────────────────────────────────
 function tabFor(category) {
   var name = CATEGORY_TABS[category];
   if (!name) throw new Error('Unknown category: ' + category);
   return name;
 }
 
-// Return the tab by name, creating it (with header row) if it is missing so a
-// fresh log sheet still works.
 function getOrCreateSheet(tabName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(tabName);
@@ -139,9 +109,6 @@ function readHeaders(sheet) {
   });
 }
 
-// Make sure every known header exists; append any missing ones to the right so
-// the notifier's extra tracking columns (MailSent/ReminderSent) are never
-// clobbered.
 function ensureHeaders(sheet) {
   var headers = readHeaders(sheet);
   if (headers.length === 0) {
@@ -156,7 +123,6 @@ function ensureHeaders(sheet) {
   return headers;
 }
 
-// ─── Actions ────────────────────────────────────────────────────────────────
 function statusAction() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   return jsonOut({ authenticated: true, sheetUrl: ss.getUrl() });
@@ -185,29 +151,85 @@ function getAllAction() {
   return jsonOut({
     before: listFailures('before'),
     after: listFailures('after'),
+    hla: listFailures('hla'),
   });
 }
 
-function getImageFolder() {
-  var it = DriveApp.getFoldersByName(IMAGE_FOLDER_NAME);
-  if (it.hasNext()) return it.next();
-  return DriveApp.createFolder(IMAGE_FOLDER_NAME);
+function driveHeaders_() {
+  return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
 }
 
-// image = { name, mimeType, data(base64) } -> returns a /file/d/<id>/view link
-// (matches the format the dashboard parses for thumbnails).
-function uploadImage(folder, image) {
-  var bytes = Utilities.base64Decode(image.data);
-  var blob = Utilities.newBlob(bytes, image.mimeType || 'application/octet-stream', image.name || 'upload');
-  var file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/file/d/' + file.getId() + '/view';
+function getImageFolderId() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(IMAGE_FOLDER_ID_PROP);
+  if (id) {
+    var check = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + id + '?fields=id,trashed',
+      { headers: driveHeaders_(), muteHttpExceptions: true });
+    if (check.getResponseCode() === 200 && !JSON.parse(check.getContentText()).trashed) {
+      return id;
+    }
+  }
+  var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: driveHeaders_(),
+    payload: JSON.stringify({ name: IMAGE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() >= 300) throw new Error('Drive folder create failed: ' + res.getContentText());
+  id = JSON.parse(res.getContentText()).id;
+  props.setProperty(IMAGE_FOLDER_ID_PROP, id);
+  return id;
+}
+
+function uploadImage(folderId, image) {
+  var boundary = 'cfm' + Utilities.getUuid();
+  var meta = { name: image.name || 'upload', parents: [folderId] };
+  var head = '--' + boundary + '\r\n' +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(meta) + '\r\n' +
+    '--' + boundary + '\r\n' +
+    'Content-Type: ' + (image.mimeType || 'application/octet-stream') + '\r\n\r\n';
+  var tail = '\r\n--' + boundary + '--';
+
+  var body = Utilities.newBlob(head).getBytes()
+    .concat(Utilities.base64Decode(image.data))
+    .concat(Utilities.newBlob(tail).getBytes());
+
+  var res = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'post',
+      contentType: 'multipart/related; boundary=' + boundary,
+      headers: driveHeaders_(),
+      payload: body,
+      muteHttpExceptions: true,
+    });
+  if (res.getResponseCode() >= 300) throw new Error('Drive upload failed: ' + res.getContentText());
+  var fileId = JSON.parse(res.getContentText()).id;
+
+  UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/permissions', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: driveHeaders_(),
+    payload: JSON.stringify({ role: 'reader', type: 'anyone' }),
+    muteHttpExceptions: true,
+  });
+
+  return 'https://drive.google.com/file/d/' + fileId + '/view';
 }
 
 function reportAction(p) {
+  if (!p) {
+    throw new Error(
+      'reportAction is called by the web app (doPost), not run directly from the ' +
+      'editor. To test: submit a report from the dashboard, or run sendTestEmail() ' +
+      'to check the coordinator email.');
+  }
   var category = p.category;
-  if (category !== 'before' && category !== 'after') {
-    return jsonOut({ error: 'category must be "before" or "after"' });
+  if (!CATEGORY_TABS[category]) {
+    return jsonOut({ error: 'category must be one of: ' + Object.keys(CATEGORY_TABS).join(', ') });
   }
   if (!p.failureType || FAILURE_TYPES[category].indexOf(p.failureType) === -1) {
     return jsonOut({ error: 'failureType must be one of the listed options for this category' });
@@ -225,10 +247,10 @@ function reportAction(p) {
     return jsonOut({ error: 'billImage is required' });
   }
 
-  var folder = getImageFolder();
-  var billImageLink = uploadImage(folder, p.billImage);
+  var folderId = getImageFolderId();
+  var billImageLink = uploadImage(folderId, p.billImage);
   var referenceImageLinks = (p.referenceImages || []).map(function (img) {
-    return uploadImage(folder, img);
+    return uploadImage(folderId, img);
   });
 
   var timestamp = new Date().toISOString();
@@ -257,13 +279,25 @@ function reportAction(p) {
   });
   sheet.appendRow(row);
 
+  try {
+    var to = coordinatorEmail_();
+    if (to) {
+      var col = {};
+      headers.forEach(function (name, i) { col[String(name).trim()] = i; });
+      sendFailureEmail_(to, row, col, TABS[tabFor(category)], false);
+      var mailCol = headers.indexOf('MailSent') + 1;
+      if (mailCol > 0) sheet.getRange(sheet.getLastRow(), mailCol).setValue(formatWhen_(new Date()));
+    }
+  } catch (mailErr) {
+  }
+
   return jsonOut({ ok: true, failure: values });
 }
 
 function setRecollectionAction(p) {
   var category = p.category;
-  if (category !== 'before' && category !== 'after') {
-    return jsonOut({ error: 'category must be "before" or "after"' });
+  if (!CATEGORY_TABS[category]) {
+    return jsonOut({ error: 'category must be one of: ' + Object.keys(CATEGORY_TABS).join(', ') });
   }
   var rowNumber = Number(p.rowNumber);
   if (!(rowNumber >= 2) || Math.floor(rowNumber) !== rowNumber) {
@@ -283,20 +317,13 @@ function setRecollectionAction(p) {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * PART 2 — EMAIL NOTIFIER (time trigger)
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * Run installTrigger() once to start the 5-minute poll. It emails the
- * coordinator each new failure and a 72h reminder for anything still pending.
- */
-
 var TABS = {
   'Before Processing Failure': 'Before Processing',
   'After Processing Failure': 'After Processing',
+  'HLA failures': 'HLA',
 };
 
-var COORDINATOR_EMAIL = 'jeevav936@gmail.com';
+var COORDINATOR_EMAIL = 'genetics@andersondiagnostics.in';
 
 var CC_EMAIL = 'andersonreportautomation@gmail.com';
 
@@ -308,9 +335,6 @@ var MAIL_SENT_HEADER = 'MailSent';
 
 var REMINDER_SENT_HEADER = 'ReminderSent';
 
-// Natural-language phrase for each FailureType (must match FAILURE_TYPES
-// above exactly). 'Other' has no entry - it falls back to the reporter's own
-// Reason text, since that's the only description we have.
 var FAILURE_PHRASES = {
   'Onco blocks - low tumor %': 'the tumor percentage in the received block is too low to proceed with testing,',
   'Blood Sample - Lysed/Hemolysed/Clotted': "sample received is lysed/hemolysed/clotted, couldn't take it for further processing,",
@@ -322,11 +346,57 @@ var FAILURE_PHRASES = {
   'Microarray - No fetal genotype After MCC': 'no fetal genotype was detected even after MCC correction,',
   'Covid - IC failed': 'the internal control (IC) has failed,',
   'Fish her2 - Non diagnostics sample': 'sample received is non-diagnostic,',
+  'No name/reference number on the requisition or container': 'has no name/reference number on the requisition or container,',
+  'Incorrect or insufficient information on label': 'has incorrect or insufficient information on the label,',
+  'Illegible or incomplete request form': 'was received with an illegible or incomplete request form,',
+  'EDTA Blood / Cord Blood Not received within 48 hours': 'the EDTA/cord blood was not received within 48 hours,',
+  'DNA not extracted within 72 hours': 'the DNA was not extracted within 72 hours,',
+  'Mismatch of name on the container and request.': 'has a mismatch of name between the container and the request,',
+  'Clotted or hemolyzed EDTA, sodium heparin, ACD blood': 'sample received is clotted/hemolyzed (EDTA, sodium heparin, ACD blood),',
+  'Lipemic or hemolyzed serum sample': 'the serum sample received is lipemic/hemolyzed,',
+  'EDTA blood: Insufficient volume': 'the EDTA blood was received in insufficient volume,',
+  'DNA concentration <5 ng/µL': 'the DNA concentration obtained is below 5 ng/µL,',
+  'Improper transport temperature': 'was transported at an improper temperature,',
 };
 
 function coordinatorEmail_() {
   var prop = PropertiesService.getScriptProperties().getProperty('COORDINATOR_EMAIL');
   return (prop && prop.trim()) || COORDINATOR_EMAIL.trim();
+}
+
+function authorize() {
+  var folderId = getImageFolderId();
+  var link = uploadImage(folderId, {
+    name: 'cfm-permission-check.txt',
+    mimeType: 'text/plain',
+    data: Utilities.base64Encode('ok'),
+  });
+  var probeId = link.match(/\/file\/d\/([^/]+)/)[1];
+  UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + probeId, {
+    method: 'delete', headers: driveHeaders_(), muteHttpExceptions: true,
+  });
+  SpreadsheetApp.getActiveSpreadsheet().getName();
+  MailApp.getRemainingDailyQuota();
+  Logger.log('Authorized OK — Drive(file) + Sheets + Gmail all granted.');
+}
+
+function sendTestEmail() {
+  var to = coordinatorEmail_();
+  var col = {};
+  FAILURE_HEADERS.forEach(function (name, i) { col[name] = i; });
+  var sample = {
+    Timestamp: new Date().toISOString(),
+    PatientName: 'Test Patient',
+    SampleID: 'TEST-001',
+    OrderID: 'ORD-TEST',
+    TestName: 'NIPS',
+    HospitalName: 'Test Hospital',
+    FailureType: 'NIPS - QC matrix failed',
+    Notes: 'This is a test email from Code.gs (sendTestEmail) — ignore.',
+  };
+  var row = FAILURE_HEADERS.map(function (name) { return sample[name] || ''; });
+  sendFailureEmail_(to, row, col, 'Before Processing', false);
+  Logger.log('Test email sent to %s%s', to, CC_EMAIL ? ' (cc ' + CC_EMAIL + ')' : '');
 }
 
 function installTrigger() {
@@ -414,14 +484,6 @@ function processSheet_(sheet, tabName, to, props) {
       }
     }
   }
-
-  // NOTE: `seen` is only ever meant to baseline the pre-existing backlog at
-  // install time (see installTrigger). It must not advance beyond that on
-  // every run - doing so was a bug: a row whose send failed (quota, transient
-  // API error) would have `sheetRow > seen` become permanently false on the
-  // next run, so it could never be retried. Rows are keyed by MailSent being
-  // empty, which is already sufficient and safely idempotent, so `seen` stays
-  // fixed at its installed baseline forever.
 }
 
 function ensureColumn_(sheet, header) {
@@ -452,8 +514,6 @@ function formatWhen_(d) {
 function failurePhrase_(failureType, reason) {
   var phrase = FAILURE_PHRASES[failureType];
   if (phrase) return phrase;
-  // 'Other' (or any future type without a curated phrase) - only thing we
-  // have to describe it is the reporter's own free-text Reason.
   return (reason || 'a processing failure was reported') + ',';
 }
 
@@ -474,8 +534,6 @@ function sendFailureEmail_(to, row, col, stageLabel, isReminder) {
   var sampleLabel = testName || stageLabel;
   var phrase = failurePhrase_(failureType, reason);
 
-  // e.g. "Kindly be informed the NIPS sample of Ms.Rajeshwari from Lakshmi
-  // Hospital the QC matrix has failed, kindly arrange for Repeat sample."
   var sentence = 'Kindly be informed the ' + sampleLabel + ' sample of ' + patientLabel +
     (hospital ? ' from ' + hospital : '') + ' ' + phrase + ' kindly arrange for Repeat sample.';
 

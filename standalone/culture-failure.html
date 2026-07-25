@@ -34,6 +34,8 @@
       --cat-self-wash: rgba(37, 99, 235, 0.10);
       --cat-fish: #e8720f;
       --cat-fish-wash: rgba(232, 114, 15, 0.12);
+      --cat-hla: #7c3aed;
+      --cat-hla-wash: rgba(124, 58, 237, 0.12);
 
       --radius: 18px;
       --radius-sm: 12px;
@@ -400,6 +402,7 @@
     }
     .failure-card.cat-self .failure-card-icon { background: var(--cat-self-wash); color: var(--cat-self); }
     .failure-card.cat-fish .failure-card-icon { background: var(--cat-fish-wash); color: var(--cat-fish); }
+    .failure-card.cat-hla .failure-card-icon { background: var(--cat-hla-wash); color: var(--cat-hla); }
 
     .failure-card-body { flex: 1; min-width: 0; }
     .failure-card-title {
@@ -518,6 +521,7 @@
 
     .stat-card.tone-self .stat-label { color: var(--cat-self); }
     .stat-card.tone-fish .stat-label { color: var(--cat-fish); }
+    .stat-card.tone-hla .stat-label { color: var(--cat-hla); }
     .stat-card.tone-accent .stat-label { color: var(--accent); }
     .stat-card.tone-accent .stat-value { color: var(--status-good); }
     .stat-card.tone-warning .stat-label { color: var(--status-critical); }
@@ -816,6 +820,7 @@
     }
     .cat-pill.tone-self { background: var(--cat-self); color: #fff; }
     .cat-pill.tone-fish { background: var(--cat-fish); color: #fff; }
+    .cat-pill.tone-hla { background: var(--cat-hla); color: #fff; }
 
     .empty-state {
       display: none;
@@ -1072,6 +1077,7 @@
                 <option value="all">All</option>
                 <option value="before">Before Processing</option>
                 <option value="after">After Processing</option>
+                <option value="hla">HLA Failures</option>
               </select>
             </div>
             <button type="button" id="combinedFilterReset" class="ghost">Reset</button>
@@ -1119,6 +1125,7 @@
             <option value="all">All</option>
             <option value="before">Before Processing</option>
             <option value="after">After Processing</option>
+            <option value="hla">HLA Failures</option>
           </select>
         </div>
         <div class="filter-field">
@@ -1216,6 +1223,7 @@
               <option value="" disabled selected>Select…</option>
               <option value="before">Before Processing</option>
               <option value="after">After Processing</option>
+              <option value="hla">HLA Failures</option>
             </select>
           </label>
         </div>
@@ -1319,11 +1327,35 @@
       'Fish her2 - Non diagnostics sample',
       'Other',
     ],
+    hla: [
+      'No name/reference number on the requisition or container',
+      'Incorrect or insufficient information on label',
+      'Illegible or incomplete request form',
+      'EDTA Blood / Cord Blood Not received within 48 hours',
+      'DNA not extracted within 72 hours',
+      'Mismatch of name on the container and request.',
+      'Clotted or hemolyzed EDTA, sodium heparin, ACD blood',
+      'Lipemic or hemolyzed serum sample',
+      'EDTA blood: Insufficient volume',
+      'DNA concentration <5 ng/µL',
+      'Improper transport temperature',
+      'Other',
+    ],
   };
+
+  /* Category metadata — single source of truth for labels, colour tone, and
+   * icon so the before/after/HLA split isn't hard-coded across the UI. */
+  const CATEGORIES = {
+    before: { label: 'Before Processing', short: 'Before', tone: 'self', icon: 'before' },
+    after: { label: 'After Processing', short: 'After', tone: 'fish', icon: 'after' },
+    hla: { label: 'HLA Failures', short: 'HLA', tone: 'hla', icon: 'hla' },
+  };
+  const CATEGORY_KEYS = Object.keys(CATEGORIES);
+  const catInfo = (c) => CATEGORIES[c] || CATEGORIES.before;
 
   const state = {
     role: 'wetlab',
-    failures: { before: [], after: [] },
+    failures: { before: [], after: [], hla: [] },
     filters: { from: '', to: '', department: 'all', client: 'all', category: 'all', failureType: 'all', status: 'all', search: '' },
     combinedFilter: 'all',
     combinedCategory: 'all',
@@ -1403,6 +1435,7 @@
     spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spin"><path d="M21 12a9 9 0 1 1-9-9"/></svg>',
     before: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V2"/><path d="M9 2h6"/></svg>',
     after: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3c0 4 3 4 3 8s-3 4-3 8M18 3c0 4-3 4-3 8s3 4 3 8"/><path d="M8 7h8M8 17h8"/></svg>',
+    hla: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/></svg>',
     person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
@@ -1577,8 +1610,8 @@
 
     const tdCat = document.createElement('td');
     const catPill = document.createElement('span');
-    catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
-    catPill.textContent = f._category === 'before' ? 'Before' : 'After';
+    catPill.className = `cat-pill tone-${catInfo(f._category).tone}`;
+    catPill.textContent = catInfo(f._category).short;
     tdCat.appendChild(catPill);
     tr.appendChild(tdCat);
 
@@ -1613,14 +1646,15 @@
 
   function buildFailureCard(f) {
     const status = isResolved(f) ? 'Resolved' : 'Pending';
+    const info = catInfo(f._category);
     const card = document.createElement('div');
-    card.className = `failure-card tone-${status.toLowerCase()} cat-${f._category === 'before' ? 'self' : 'fish'}`;
+    card.className = `failure-card tone-${status.toLowerCase()} cat-${info.tone}`;
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
 
     const icon = document.createElement('span');
     icon.className = 'failure-card-icon';
-    icon.appendChild(svgNode(ICONS[f._category === 'before' ? 'before' : 'after']));
+    icon.appendChild(svgNode(ICONS[info.icon]));
     card.appendChild(icon);
 
     const body = document.createElement('span');
@@ -1715,7 +1749,7 @@
     }
     const badge = document.createElement('span');
     badge.className = 'latest-live-badge';
-    badge.textContent = latest._category === 'before' ? 'Before Processing' : 'After Processing';
+    badge.textContent = catInfo(latest._category).label;
     frame.appendChild(badge);
     container.appendChild(frame);
 
@@ -1826,7 +1860,7 @@
       const s = v == null ? '' : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const rows = list.map((f) => columns.map((c) => escapeCsv(c === 'Category' ? (f._category === 'before' ? 'Before Processing' : 'After Processing') : f[c])).join(','));
+    const rows = list.map((f) => columns.map((c) => escapeCsv(c === 'Category' ? catInfo(f._category).label : f[c])).join(','));
     const csv = [columns.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1867,8 +1901,8 @@
     const recollectionRow = document.createElement('div');
     recollectionRow.className = 'detail-recollection';
     const catPill = document.createElement('span');
-    catPill.className = `cat-pill tone-${f._category === 'before' ? 'self' : 'fish'}`;
-    catPill.textContent = f._category === 'before' ? 'Before Processing' : 'After Processing';
+    catPill.className = `cat-pill tone-${catInfo(f._category).tone}`;
+    catPill.textContent = catInfo(f._category).label;
     recollectionRow.appendChild(catPill);
     const canEditRecollection = state.role === 'coordinator';
     const pill = document.createElement('button');
@@ -1941,7 +1975,7 @@
     if (!isConfigured()) return;
     try {
       const data = await apiGet('getAll');
-      state.failures = { before: data.before || [], after: data.after || [] };
+      state.failures = { before: data.before || [], after: data.after || [], hla: data.hla || [] };
       refreshManagerFilterOptions();
       renderActiveView();
     } catch (err) {
@@ -2120,8 +2154,8 @@
       return;
     }
 
-    if (category !== 'before' && category !== 'after') {
-      errorBox.textContent = 'Please select a Category (Before or After Processing).';
+    if (!CATEGORIES[category]) {
+      errorBox.textContent = 'Please select a Category.';
       errorBox.hidden = false;
       return;
     }
@@ -2182,7 +2216,7 @@
       ]);
 
       await apiPost({ action: 'report', ...fields, billImage, referenceImages });
-      toast('Failure reported and saved. (WhatsApp notification to the coordinator isn\'t connected yet.)', 'success');
+      toast('Failure reported and saved. The coordinator has been notified by email.', 'success');
       closeReportModal();
       await fetchFailures();
     } catch (err) {
@@ -2195,9 +2229,8 @@
   }
 
   function getAllFailuresFlat() {
-    const before = (state.failures.before || []).map((f) => ({ ...f, _category: 'before' }));
-    const after = (state.failures.after || []).map((f) => ({ ...f, _category: 'after' }));
-    return [...before, ...after];
+    return CATEGORY_KEYS.flatMap((cat) =>
+      (state.failures[cat] || []).map((f) => ({ ...f, _category: cat })));
   }
 
   const DEPARTMENT_RULES = [
@@ -2211,6 +2244,7 @@
   ];
 
   function deriveDepartment(f) {
+    if (f._category === 'hla') return 'HLA';
     const text = `${f.TestName || ''} ${f.FailureType || ''}`;
     const hit = DEPARTMENT_RULES.find(([, re]) => re.test(text));
     return hit ? hit[0] : 'Other';
@@ -2316,8 +2350,8 @@
     filtered.forEach((f) => {
       const type = f.FailureType || '(none)';
       counts.set(type, (counts.get(type) || 0) + 1);
-      const cats = catCounts.get(type) || { before: 0, after: 0 };
-      cats[f._category === 'before' ? 'before' : 'after'] += 1;
+      const cats = catCounts.get(type) || {};
+      cats[f._category] = (cats[f._category] || 0) + 1;
       catCounts.set(type, cats);
     });
     const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -2355,7 +2389,8 @@
       const barH = rowHeight - 12;
       const barW = Math.max(3, xScale(count) - plotX0);
       const cats = catCounts.get(type);
-      const color = cats.after > cats.before ? 'var(--cat-fish)' : 'var(--cat-self)';
+      const dominant = CATEGORY_KEYS.reduce((a, b) => ((cats[b] || 0) > (cats[a] || 0) ? b : a), CATEGORY_KEYS[0]);
+      const color = `var(--cat-${catInfo(dominant).tone})`;
       return `
         <rect class="bd-track" x="${plotX0}" y="${barY.toFixed(1)}" width="${plotW}" height="${barH}" rx="5" fill="var(--page-plane)" opacity="0" />
         <text x="${plotX0 - 10}" y="${(y + rowHeight / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-secondary)" text-anchor="end">${escapeHtml(truncate(type))}<title>${escapeHtml(type)}</title></text>
@@ -2371,8 +2406,7 @@
       </svg>
       <div class="trend-tooltip" hidden></div>
       <div class="chart-legend">
-        <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-self)"></span>Mostly Before Processing</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:var(--cat-fish)"></span>Mostly After Processing</span>
+        ${CATEGORY_KEYS.map((c) => `<span class="legend-item"><span class="legend-swatch" style="background:var(--cat-${catInfo(c).tone})"></span>Mostly ${escapeHtml(catInfo(c).label)}</span>`).join('')}
       </div>
     `;
 
@@ -2391,8 +2425,7 @@
       const cats = catCounts.get(type);
       tooltip.innerHTML = `
         <div class="tt-date">${escapeHtml(type)}</div>
-        <div class="tt-row"><span class="tt-dot" style="background:var(--cat-self)"></span>Before Processing<span class="tt-val">${cats.before}</span></div>
-        <div class="tt-row"><span class="tt-dot" style="background:var(--cat-fish)"></span>After Processing<span class="tt-val">${cats.after}</span></div>
+        ${CATEGORY_KEYS.map((c) => `<div class="tt-row"><span class="tt-dot" style="background:var(--cat-${catInfo(c).tone})"></span>${escapeHtml(catInfo(c).label)}<span class="tt-val">${cats[c] || 0}</span></div>`).join('')}
         <div class="tt-row tt-total">Total<span class="tt-val">${count}</span></div>`;
       tooltip.hidden = false;
       const ttW = tooltip.offsetWidth;

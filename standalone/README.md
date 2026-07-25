@@ -43,6 +43,13 @@ working unchanged.
 2. Paste in the contents of [`../apps-script/Code.gs`](../apps-script/Code.gs)
    (replace the default `Code.gs`), and save. This one file is both the data
    API (web app) and the email notifier.
+2b. **Set the OAuth scopes explicitly** (avoids "You do not have permission to
+   call DriveApp..." errors): Project Settings → tick *Show appsscript.json
+   manifest file*, then open `appsscript.json` and replace it with
+   [`../apps-script/appsscript.json`](../apps-script/appsscript.json). Save, then
+   run the `authorize` function once and approve the consent. Image uploads use
+   the Drive REST API on the narrow `drive.file` scope (not all-Drive), so the
+   app can only touch files it creates.
 3. **Deploy → New deployment → Web app.**
    - Execute as: **Me**
    - Who has access: **Anyone** (the page calls it without a Google login;
